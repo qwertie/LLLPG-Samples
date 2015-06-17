@@ -42,36 +42,20 @@ namespace Ecs.Parser
 					line += "\n" + Console.ReadLine();
 				try {
 					// Parse EC#!
-					IListSource<LNode> stmts = Parse((StringSlice)line, "", MessageSink.Console);
+					IListSource<LNode> stmts = EcsLanguageService.Value.Parse(line, MessageSink.Console);
 					// If you'd like to parse LES instead of EC#, write this instead:
 					// IListSource<LNode> stmts = Loyc.Syntax.Les.LesLanguageService.Value.Parse(line, MessageSink.Console);
 
 					var c = Console.ForegroundColor;
 					Console.ForegroundColor = ConsoleColor.Cyan;
 					foreach (var stmt in stmts)
-						Console.WriteLine("Syntax tree: " + stmt.ToString());
+						Console.WriteLine("Syntax tree (LES format): " + stmt.ToString());
 					Console.ForegroundColor = c;
 				} catch (Exception ex) {
 					Console.WriteLine(ex.GetType().Name + ": " + ex.Message);
 				}
 				Console.WriteLine();
 			}
-		}
-		public static IListSource<LNode> Parse(ICharSource text, string fileName, IMessageSink msgs)
-		{
-			var lexer = new EcsLexer(text, fileName, msgs);
-			return Parse(lexer, msgs);
-		}
-		public static IListSource<LNode> Parse(ILexer input, IMessageSink msgs)
-		{
-			var preprocessed = new EcsPreprocessor(input);
-			var treeified = new TokensToTree(preprocessed, false);
-			return Parse(treeified.Buffered(), input.SourceFile, msgs);
-		}
-		public static IListSource<LNode> Parse(IListSource<Token> input, ISourceFile file, IMessageSink msgs)
-		{
-			var parser = new EcsParser(input, file, msgs);
-			return parser.ParseStmtsLazy().Buffered();
 		}
 	}
 }

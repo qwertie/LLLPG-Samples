@@ -16,18 +16,16 @@ using Loyc.Syntax.Les;
 namespace Ecs.Parser
 {
 	using TT = TokenType;
-	using S = CodeSymbols;
 
-	/// <summary>Lexer for EC# source code (see <see cref="ILexer"/>).</summary>
-	/// <seealso cref="WhitespaceFilter"/>
+	/// <summary>Lexer for EC# source code (see <see cref="ILexer{Token}"/>).</summary>
 	/// <seealso cref="TokensToTree"/>
-	public partial class EcsLexer : BaseLexer, ILexer
+	public partial class EcsLexer : BaseLexer, ILexer<Token>
 	{
-		public EcsLexer(string text, IMessageSink sink) : base(new StringSlice(text), "") { ErrorSink = sink; }
-		public EcsLexer(ICharSource text, string fileName, IMessageSink sink) : base(text, fileName) { ErrorSink = sink; }
+		public EcsLexer(string text, IMessageSink sink) : base(new UString(text), "") { ErrorSink = sink; }
+		public EcsLexer(ICharSource text, string fileName, IMessageSink sink, int startPosition = 0) : base(text, fileName, startPosition) { ErrorSink = sink; }
 
 		public bool AllowNestedComments = false;
-		private bool _isFloat, _parseNeeded, _isNegative, _verbatim;
+		private bool _isFloat, _parseNeeded, _verbatim;
 		// Alternate: hex numbers, verbatim strings
 		// UserFlag: bin numbers, double-verbatim
 		private NodeStyle _style;
@@ -40,199 +38,52 @@ namespace Ecs.Parser
 		// at the current input position. When _allowPPAt==_startPosition, it's allowed.
 		private int _allowPPAt;
 
+		public void Reset(ICharSource source, string fileName = "", int inputPosition = 0)
+		{
+			base.Reset(source, fileName, inputPosition, true);
+		}
+
 		public new ISourceFile SourceFile { get { return base.SourceFile; } }
-		public IMessageSink ErrorSink { get; set; }
 
 		int _indentLevel;
 		UString _indent;
 		public int IndentLevel { get { return _indentLevel; } }
+		public UString IndentString { get { return _indent; } }
 		public int SpacesPerTab = 4;
 
-		public Token? NextToken()
+		public Maybe<Token> NextToken()
 		{
 			_startPosition = InputPosition;
 			_value = null;
 			_style = 0;
 			if (InputPosition >= CharSource.Count)
-				return null;
-			else {
+				return Maybe<Token>.NoValue;
+			else
+			{
 				Token();
 				Debug.Assert(InputPosition > _startPosition);
 				return new Token((int)_type, _startPosition, InputPosition - _startPosition, _style, _value);
 			}
 		}
 
-		protected override void Error(int index, string message)
+		protected override void Error(int lookaheadIndex, string message)
 		{
 			// the fast "blitting" code path may not be able to handle errors
 			_parseNeeded = true;
 
-			var pos = SourceFile.IndexToLine(index);
+			var pos = SourceFile.IndexToLine(InputPosition + lookaheadIndex);
 			if (ErrorSink != null)
 				ErrorSink.Write(Severity.Error, pos, message);
 			else
 				throw new FormatException(pos + ": " + message);
 		}
-				
+
 		public void Restart()
 		{
 			_indentLevel = 0;
 			_lineNumber = 0;
 			_allowPPAt = _lineStartAt = 0;
 		}
-
-		internal static readonly HashSet<Symbol> CsKeywords = SymbolSet(
-			"abstract",  "event",     "new",        "struct", 
-			"as",        "explicit",  "null",       "switch", 
-			"base",      "extern",    "object",     "this", 
-			"bool",      "false",     "operator",   "throw", 
-			"break",     "finally",   "out",        "true", 
-			"byte",      "fixed",     "override",   "try", 
-			"case",      "float",     "params",     "typeof", 
-			"catch",     "for",       "private",    "uint", 
-			"char",      "foreach",   "protected",  "ulong", 
-			"checked",   "goto",      "public",     "unchecked", 
-			"class",     "if",        "readonly",   "unsafe", 
-			"const",     "implicit",  "ref",        "ushort", 
-			"continue",  "in",        "return",     "using", 
-			"decimal",   "int",       "sbyte",      "virtual", 
-			"default",   "interface", "sealed",     "volatile", 
-			"delegate",  "internal",  "short",      "void", 
-			"do",        "is",        "sizeof",     "while", 
-			"double",    "lock",      "stackalloc",
-			"else",      "long",      "static",
-			"enum",      "namespace", "string");
-
-		internal static HashSet<Symbol> SymbolSet(params string[] input)
-		{
-			return new HashSet<Symbol>(input.Select(s => GSymbol.Get(s)));
-		}
-
-		internal static readonly HashSet<Symbol> PreprocessorIdentifiers = SymbolSet(
-			"if", "else", "elif", "endif", "define", "undef", "line", 
-			"region", "endregion", "warning", "error", "note");
-
-		// This is the set of keywords that act only as attributes on statements.
-		// This list does not include "new" and "out", which are only allowed as 
-		// attributes on variable declarations and other specific statements.
-		static readonly HashSet<Symbol> AttrKeywords = SymbolSet(
-			"abstract", "const", "explicit", "extern", "implicit", "internal", //"new",
-			"override", "params", "private", "protected", "public", "readonly", "ref",
-			"sealed", "static", "unsafe", "virtual", "volatile");
-
-		static readonly HashSet<Symbol> TypeKeywords = SymbolSet(
-			"bool", "byte", "char", "decimal", "double", "float", "int", "long",
-			"object", "sbyte", "short", "string", "uint", "ulong", "ushort", "void");
-
-		// contains non-trivial mappings like int => #int32. If the string is not in 
-		// this map, we simply add "#" on the front to form the token's Value.
-		internal static readonly Dictionary<Symbol, string> TypeKeywordMap = Dictionary(
-			P(S.Void, "void"),  P(S.Object, "object"), P(S.Bool, "bool"), P(S.Char, "char"), 	
-			P(S.Int8, "sbyte"), P(S.UInt8, "byte"), P(S.Int16, "short"), P(S.UInt16, "ushort"), 
-			P(S.Int32, "int"), P(S.UInt32, "uint"), P(S.Int64, "long"), P(S.UInt64, "ulong"), 
-			P(S.Single, "float"), P(S.Double, "double"), P(S.String, "string"), P(S.Decimal, "decimal")
-		);
-		static Pair<K,V> P<K,V>(K key, V value) 
-			{ return G.Pair(key, value); }
-		static Dictionary<K,V> Dictionary<K,V>(params Pair<K,V>[] input)
-		{
-			var d = new Dictionary<K,V>();
-			for (int i = 0; i < input.Length; i++)
-				d.Add(input[i].Key, input[i].Value);
-			return d;
-		}
-
-		static readonly Dictionary<string, Symbol> TokenNameMap = InverseMap(TypeKeywordMap);
-		private static Dictionary<K,V> InverseMap<K,V>(IEnumerable<KeyValuePair<V,K>> list)
-		{
-			var d = new Dictionary<K, V>();
-			foreach (var pair in list)
-				d.Add(pair.Value, pair.Key);
-			return d;
-		}
-
-		#region Lookup tables: Keyword trie and operator lists
-
-		/*private class Trie
-		{
-			public char CharOffs;
-			public Trie[] Child;
-			public Symbol Value;
-			public TokenType TokenType; // "AttrKeyword", "TypeKeyword" or same as Keyword
-		}
-		private static Trie BuildTrie(IEnumerable<Symbol> words, char minChar, char maxChar, Func<Symbol, TokenType> getTokenType, Func<Symbol, Symbol> getValue)
-		{
-			var trie = new Trie { CharOffs = minChar };
-			foreach (Symbol word in words) {
-				var t = trie;
-				foreach (char c in word.Name) {
-					t.Child = t.Child ?? new Trie[maxChar - minChar + 1];
-					t = t.Child[c - t.CharOffs] = t.Child[c - t.CharOffs] ?? new Trie { CharOffs = minChar };
-				}
-				t.Value = getValue(word);
-				t.TokenType = getTokenType(word);
-			}
-			return trie;
-		}
-		// Variable-length find method
-		private static bool FindInTrie(Trie t, string source, int start, out int stop, ref Symbol value, ref TokenType type)
-		{
-			bool success = false;
-			stop = start;
-			for (int i = start; ; i++) {
-				if (t.Value != null) {
-					value = t.Value;
-					type = t.TokenType;
-					success = true;
-					stop = i;
-				}
-				char input = source.TryGet(i, (char)0xFFFF);
-				int input_i = input - t.CharOffs;
-				if (t.Child == null || (uint)input_i >= t.Child.Length)
-					return success;
-				if ((t = t.Child[input - t.CharOffs]) == null)
-					return success;
-			}
-		}
-
-		private static readonly Trie PunctuationTrie = BuildTrie(PunctuationIdentifiers, (char)32, (char)127, 
-			word => TT.Id, word => word);
-		private static readonly Trie PreprocessorTrie = BuildTrie(PreprocessorIdentifiers, (char)32, (char)127, 
-			word => (TT)Enum.Parse(typeof(TT), "PP" + word),
-			word => GSymbol.Get("##" + word));
-		private static readonly Trie KeywordTrie = BuildTrie(CsKeywords, 'a', 'z', word => {
-			if (AttrKeywords.Contains(word))
-				return TT.AttrKeyword;
-			if (TypeKeywords.Contains(word))
-				return TT.TypeKeyword;
-			return (TT)Enum.Parse(typeof(TT), word.Name);
-		},	word => TokenNameMap.TryGetValue(word.Name, GSymbol.Get("#" + word.Name)));
-		 */
-		/*static readonly Symbol[] OperatorSymbols, OperatorEqualsSymbols;
-		static EcsLexer()
-		{
-			OperatorSymbols = new Symbol[128];
-			OperatorEqualsSymbols = new Symbol[128];
-			foreach (Symbol op in PunctuationIdentifiers) {
-				if (op.Name.Length == 2)
-					OperatorSymbols[(int)op.Name[1]] = op;
-				else if (op.Name.Length == 3 && op.Name[2] == '=')
-					OperatorEqualsSymbols[(int)op.Name[1]] = op;
-			}
-		}
-		void OnOneCharOperator(int ch)
-		{
-			_value = OperatorSymbols[ch];
-			Debug.Assert(_value != null);
-		}
-		void OnOperatorEquals(int ch)
-		{
-			_value = OperatorEqualsSymbols[ch];
-			Debug.Assert(_value != null);
-		}*/
-
-		#endregion
-
 
 		#region Value parsers
 		// After the generated lexer code determines the boundaries of the token, 
@@ -245,9 +96,12 @@ namespace Ecs.Parser
 		void ParseSQStringValue()
 		{
 			int len = InputPosition - _startPosition;
-			if (!_parseNeeded && len == 3) {
+			if (!_parseNeeded && len == 3)
+			{
 				_value = CG.Cache(CharSource[_startPosition + 1]);
-			} else {
+			}
+			else
+			{
 				string s = ParseStringCore(_startPosition);
 				_value = s;
 				if (s.Length == 1)
@@ -282,10 +136,13 @@ namespace Ecs.Parser
 			bool tripleQuoted = (_style & NodeStyle.Alternate2) != 0;
 
 			string value;
-			if (!_parseNeeded) {
+			if (!_parseNeeded)
+			{
 				Debug.Assert(!tripleQuoted);
 				value = (string)CharSource.Slice(start + 1, InputPosition - start - 2).ToString();
-			} else {
+			}
+			else
+			{
 				UString original = CharSource.Slice(start, InputPosition - start);
 				value = UnescapeQuotedString(ref original, _verbatim, Error, _indent);
 			}
@@ -295,22 +152,27 @@ namespace Ecs.Parser
 		static string UnescapeQuotedString(ref UString source, bool isVerbatim, Action<int, string> onError, UString indentation)
 		{
 			Debug.Assert(source.Length >= 1);
-			if (isVerbatim) {
+			if (isVerbatim)
+			{
 				bool fail;
 				char stringType = (char)source.PopFront(out fail);
 				StringBuilder sb = new StringBuilder();
 				int c;
-				for (;;) {
+				for (; ; )
+				{
 					c = source.PopFront(out fail);
 					if (fail) break;
-					if (c == stringType) {
+					if (c == stringType)
+					{
 						if ((c = source.PopFront(out fail)) != stringType)
 							break;
 					}
 					sb.Append((char)c);
 				}
 				return sb.ToString();
-			} else {
+			}
+			else
+			{
 				// triple-quoted or normal string: let LES lexer handle it
 				return LesLexer.UnescapeQuotedString(ref source, onError, indentation);
 			}
@@ -338,7 +200,8 @@ namespace Ecs.Parser
 			UString parsed;
 			Debug.Assert(isBQString == (CharSource.TryGet(start, '\0') == '`'));
 			Debug.Assert(!_verbatim);
-			if (!_idCache.TryGetValue(unparsed, out _value)) {
+			if (!_idCache.TryGetValue(unparsed, out _value))
+			{
 				if (isBQString)
 					parsed = ParseStringCore(start);
 				else if (_parseNeeded)
@@ -353,8 +216,10 @@ namespace Ecs.Parser
 		{
 			var parsed = new StringBuilder();
 			char c;
-			while ((c = text[0, '\0']) != '\0') {
-				if (!ScanUnicodeEscape(ref text, parsed, c)) {
+			while ((c = text[0, '\0']) != '\0')
+			{
+				if (!ScanUnicodeEscape(ref text, parsed, c))
+				{
 					parsed.Append(c);
 					text = text.Slice(1);
 				}
@@ -370,18 +235,22 @@ namespace Ecs.Parser
 				return false;
 			char u = text.TryGet(1, '\0');
 			int len = 4;
-			if (u == 'u' || u == 'U') {
+			if (u == 'u' || u == 'U')
+			{
 				if (u == 'U') len = 8;
 				if (text.Length < 2 + len)
 					return false;
 
 				var digits = text.Substring(2, len);
 				int code;
-				if (G.TryParseHex(digits, out code) && code <= 0x0010FFFF) {
-					if (code >= 0x10000) {
+				if (G.TryParseHex(digits, out code) && code <= 0x0010FFFF)
+				{
+					if (code >= 0x10000)
+					{
 						parsed.Append((char)(0xD800 + ((code - 0x10000) >> 10)));
 						parsed.Append((char)(0xDC00 + ((code - 0x10000) & 0x3FF)));
-					} else
+					}
+					else
 						parsed.Append((char)code);
 					text = text.Substring(2 + len);
 					return true;
@@ -431,7 +300,7 @@ namespace Ecs.Parser
 
 		#region Number parsing
 
-		static Symbol _sub = GSymbol.Get("#-");
+		static Symbol _sub = GSymbol.Get("-");
 		static Symbol _F = GSymbol.Get("F");
 		static Symbol _D = GSymbol.Get("D");
 		static Symbol _M = GSymbol.Get("M");
@@ -442,8 +311,6 @@ namespace Ecs.Parser
 		void ParseNumberValue()
 		{
 			int start = _startPosition;
-			if (_isNegative)
-				start++;
 			if (_numberBase != 10)
 				start += 2;
 			int stop = InputPosition;
@@ -452,9 +319,10 @@ namespace Ecs.Parser
 
 			UString digits = CharSource.Slice(start, stop - start);
 			string error;
-			if ((_value = LesLexer.ParseNumberCore(digits, _isNegative, _numberBase, _isFloat, _typeSuffix, out error)) == null)
+			if ((_value = LesLexer.ParseNumberCore(digits, false, _numberBase, _isFloat, _typeSuffix, out error)) == null)
 				_value = 0;
-			else if (_value == CodeSymbols.Sub) {
+			else if (_value == CodeSymbols.Sub)
+			{
 				InputPosition = _startPosition + 1;
 				_type = TT.Sub;
 			}
@@ -465,9 +333,6 @@ namespace Ecs.Parser
 		#endregion
 
 		#endregion
-
-		static readonly object BoxedFalse = false;
-		static readonly object BoxedTrue = true; 
 
 		// Due to the way generics are implemented, repeating the implementation 
 		// of this base-class method might improve performance (TODO: verify this idea)
@@ -480,12 +345,34 @@ namespace Ecs.Parser
 
 		int MeasureIndent(UString indent)
 		{
-			return LesLexer.MeasureIndent(indent, SpacesPerTab);
+			return MeasureIndent(indent, SpacesPerTab);
+		}
+		public static int MeasureIndent(UString indent, int spacesPerTab)
+		{
+			int amount = 0;
+			for (int i = 0; i < indent.Length; i++)
+			{
+				char ch = indent[i];
+				if (ch == '\t')
+				{
+					amount += spacesPerTab;
+					amount -= amount % spacesPerTab;
+				}
+				else if (ch == '.' && i + 1 < indent.Length)
+				{
+					amount += spacesPerTab;
+					amount -= amount % spacesPerTab;
+					i++;
+				}
+				else
+					amount++;
+			}
+			return amount;
 		}
 
-		Token? _current;
+		Maybe<Token> _current;
 
-		void IDisposable.Dispose() {}
+		void IDisposable.Dispose() { }
 		Token IEnumerator<Token>.Current { get { return _current.Value; } }
 		object System.Collections.IEnumerator.Current { get { return _current; } }
 		void System.Collections.IEnumerator.Reset() { throw new NotSupportedException(); }

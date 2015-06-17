@@ -14,4 +14,4 @@ This repo contains four demos, in addition to the binaries in `LLLPG/`:
 - Calculator demo (produces [Loyc trees](https://github.com/qwertie/LoycCore/wiki/Loyc-trees))
 - Enhanced C# parser
 
-LLLPG is Linux-compatible. For those without Visual Studio, you may find the built-in editor in LeMP.exe handy. For those _with_ Visual Studio, you'll want to register the custom tool by running LoycFileGeneratorForVs.exe, and install syntax highlighting by running LoycSyntaxForVs.vsix. All demo projects were made for Visual Studio 2010 or later.
+LLLPG is Linux-compatible. For those without Visual Studio, you may find the built-in editor in LLLPG/LeMP.exe handy (to learn more about LeMP, [read this](http://www.codeproject.com/Articles/995264/Avoid-tedious-coding-with-LeMP-Part)). For those _with_ Visual Studio, you'll want to register the custom tool by running LLLPG/LoycFileGeneratorForVs.exe, and install syntax highlighting by running LLLPG/LoycSyntaxForVs.vsix. All demo projects were made for Visual Studio 2010 or later.

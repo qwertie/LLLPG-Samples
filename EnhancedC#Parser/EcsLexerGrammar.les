@@ -31,13 +31,19 @@ namespace Ecs.Parser
 			_indentLevel = MeasureIndent(_indent = CharSource.Slice(_startPosition, InputPosition - _startPosition));
 			_value = WhitespaceTag.Value;
 		};
-		private token Spaces {
+		[#new] private token Spaces {
 			@[ (' '|'\t')+ ];
 			if (_allowPPAt == _startPosition)
 				_allowPPAt = InputPosition;
 			if (_lineStartAt == _startPosition)
 				// CHANGE
 				_indentLevel = MeasureIndent(_indent = CharSource.Slice(_startPosition, InputPosition - _startPosition));
+			_value = WhitespaceTag.Value;
+		};
+		private token UTF_BOM {
+			@[ '\uFEFF' ]; // Byte order mark, in case the Encoding didn't strip it out.
+			if (_lineStartAt == _startPosition) 
+				_lineStartAt = InputPosition;
 			_value = WhitespaceTag.Value;
 		};
 		private token SLComment {
@@ -79,8 +85,7 @@ namespace Ecs.Parser
 			( {_isFloat=true;} ('p'|'P') ('+'|'-')? DecDigits )?
 		];
 		private token Number() @[
-		    { _isFloat = _isNegative = false; _typeSuffix = null; }
-		    ('-' {_isNegative = true;})?
+		    { _isFloat = false; _typeSuffix = null; }
 		    (HexNumber / BinNumber / DecNumber)
 		    ( ( ('f'|'F') {_typeSuffix=_F; _isFloat=true;}
 		      | ('d'|'D') {_typeSuffix=_D; _isFloat=true;}
@@ -132,17 +137,19 @@ namespace Ecs.Parser
 		// Identifiers and Symbols -----------------------------------------------
 
 		private rule IdStartChar @[ '_'|'a'..'z'|'A'..'Z' ];
-		private rule IdUniLetter @[
-			&{char.IsLetter(LA0 -> char)} 0x80..0xFFFC |
-			"\\u" HexDigit HexDigit HexDigit HexDigit { _parseNeeded = true; }
+		[k(9)]
+		private rule IdUniLetter @
+		[	&{char.IsLetter(LA0 -> char)} 0x80..0xFFFC
+		|	"\\u" HexDigit HexDigit HexDigit HexDigit { _parseNeeded = true; }
+		|	"\\U" HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit { _parseNeeded = true; }
 		];
-		[k(7)]
+		[k(9)]
 		private rule IdContChars @[ ('0'..'9'|'\''|'#'|IdStartChar|IdUniLetter)* ];
 		private rule NormalId @[ (IdStartChar|IdUniLetter) IdContChars ];
 		private rule HashId   @[ '#'                       IdContChars ];
 		
 		private rule CommentStart @[ '/' ('/'|'*') ];
-		[k(7)]
+		[k(9)]
 		private rule FancyId::bool @[ 
 			(	BQStringN                      {return true;} 
 			|	(IdUniLetter / LettersOrPunc)+ {return false;})
@@ -162,6 +169,12 @@ namespace Ecs.Parser
 			@[ default NormalId | HashId 
 			 | '@' (NormalId / isBQ=FancyId) {skipAt=1;} ];
 			ParseIdValue(skipAt, isBQ);
+		};
+		def OtherContextualKeyword()
+		{
+			_parseNeeded = _verbatim = false;
+			_type = TT.ContextualKeyword;
+			ParseIdValue(0, false);
 		};
 		private rule LettersOrPunc @[ '0'..'9'|'a'..'z'|'A'..'Z'|'_'|'#'|'\''
 			|'~'|'!'|'%'|'^'|'&'|'*'|'\\'|'-'|'+'|'='|'|'|'<'|'>'|'/'|'?'|':'|'.'|'$' ];
@@ -225,58 +238,58 @@ namespace Ecs.Parser
 		| "\\"  { _type = TT.Backslash; _value = _Backslash; }
 		)];
 
-		static readonly _Comma::Symbol = GSymbol.Get("#,");
-		static readonly _Semicolon::Symbol = GSymbol.Get("#;");
-		static readonly _At::Symbol = GSymbol.Get("#@");
-		static readonly _DotDot::Symbol = GSymbol.Get("#..");
-		static readonly _Dot::Symbol = GSymbol.Get("#.");
-		static readonly _ShrSet::Symbol = GSymbol.Get("#>>=");
-		static readonly _GE::Symbol = GSymbol.Get("#>=");
-		static readonly _GT::Symbol = GSymbol.Get("#>");
-		static readonly _ShlSet::Symbol = GSymbol.Get("#<<=");
-		static readonly _LE::Symbol = GSymbol.Get("#<=");
-		static readonly _LT::Symbol = GSymbol.Get("#<");
-		static readonly _And::Symbol = GSymbol.Get("#&&");
-		static readonly _AndBitsSet::Symbol = GSymbol.Get("#&=");
-		static readonly _AndBits::Symbol = GSymbol.Get("#&");
-		static readonly _Or::Symbol = GSymbol.Get("#||");
-		static readonly _OrBitsSet::Symbol = GSymbol.Get("#|=");
-		static readonly _OrBits::Symbol = GSymbol.Get("#|");
-		static readonly _Xor::Symbol = GSymbol.Get("#^^");
-		static readonly _XorBitsSet::Symbol = GSymbol.Get("#^=");
-		static readonly _XorBits::Symbol = GSymbol.Get("#^");
-		static readonly _QuickBindSet::Symbol = GSymbol.Get("#:=");
-		static readonly _QuickBind::Symbol = GSymbol.Get("#=:");
-		static readonly _ColonColon::Symbol = GSymbol.Get("#::");
-		static readonly _Forward::Symbol = GSymbol.Get("#==>");
-		static readonly _Eq::Symbol = GSymbol.Get("#==");
-		static readonly _LambdaArrow::Symbol = GSymbol.Get("#=>");
-		static readonly _Set::Symbol = GSymbol.Get("#=");
-		static readonly _Neq::Symbol = GSymbol.Get("#!=");
-		static readonly _Not::Symbol = GSymbol.Get("#!");
-		static readonly _NotBits::Symbol = GSymbol.Get("#~");
-		static readonly _ExpSet::Symbol = GSymbol.Get("#**=");
-		static readonly _Exp::Symbol = GSymbol.Get("#**");
-		static readonly _MulSet::Symbol = GSymbol.Get("#*=");
-		static readonly _Mul::Symbol = GSymbol.Get("#*");
-		static readonly _DivSet::Symbol = GSymbol.Get("#/=");
-		static readonly _Div::Symbol = GSymbol.Get("#/");
-		static readonly _ModSet::Symbol = GSymbol.Get("#%=");
-		static readonly _Mod::Symbol = GSymbol.Get("#%");
-		static readonly _AddSet::Symbol = GSymbol.Get("#+=");
-		static readonly _Inc::Symbol = GSymbol.Get("#++");
-		static readonly _Add::Symbol = GSymbol.Get("#+");
-		static readonly _SubSet::Symbol = GSymbol.Get("#-=");
-		static readonly _Dec::Symbol = GSymbol.Get("#--");
-		static readonly _Sub::Symbol = GSymbol.Get("#-");
-		static readonly _NullCoalesceSet::Symbol = GSymbol.Get("#??=");
-		static readonly _NullCoalesce::Symbol = GSymbol.Get("#??");
-		static readonly _NullDot::Symbol = GSymbol.Get("#?.");
-		static readonly _QuestionMark::Symbol = GSymbol.Get("#?");
-		static readonly _Substitute::Symbol = GSymbol.Get("#$");
-		static readonly _Backslash::Symbol = GSymbol.Get("#\\");
-		static readonly _Colon::Symbol = GSymbol.Get("#:");
-		static readonly _PtrArrow::Symbol = GSymbol.Get("#->");
+		static readonly _Comma::Symbol = GSymbol.Get(",");
+		static readonly _Semicolon::Symbol = GSymbol.Get(";");
+		static readonly _At::Symbol = GSymbol.Get("@");
+		static readonly _DotDot::Symbol = GSymbol.Get("..");
+		static readonly _Dot::Symbol = GSymbol.Get(".");
+		static readonly _ShrSet::Symbol = GSymbol.Get(">>=");
+		static readonly _GE::Symbol = GSymbol.Get(">=");
+		static readonly _GT::Symbol = GSymbol.Get(">");
+		static readonly _ShlSet::Symbol = GSymbol.Get("<<=");
+		static readonly _LE::Symbol = GSymbol.Get("<=");
+		static readonly _LT::Symbol = GSymbol.Get("<");
+		static readonly _And::Symbol = GSymbol.Get("&&");
+		static readonly _AndBitsSet::Symbol = GSymbol.Get("&=");
+		static readonly _AndBits::Symbol = GSymbol.Get("&");
+		static readonly _Or::Symbol = GSymbol.Get("||");
+		static readonly _OrBitsSet::Symbol = GSymbol.Get("|=");
+		static readonly _OrBits::Symbol = GSymbol.Get("|");
+		static readonly _Xor::Symbol = GSymbol.Get("^^");
+		static readonly _XorBitsSet::Symbol = GSymbol.Get("^=");
+		static readonly _XorBits::Symbol = GSymbol.Get("^");
+		static readonly _QuickBindSet::Symbol = GSymbol.Get(":=");
+		static readonly _QuickBind::Symbol = GSymbol.Get("=:");
+		static readonly _ColonColon::Symbol = GSymbol.Get("::");
+		static readonly _Forward::Symbol = GSymbol.Get("==>");
+		static readonly _Eq::Symbol = GSymbol.Get("==");
+		static readonly _LambdaArrow::Symbol = GSymbol.Get("=>");
+		static readonly _Set::Symbol = GSymbol.Get("=");
+		static readonly _Neq::Symbol = GSymbol.Get("!=");
+		static readonly _Not::Symbol = GSymbol.Get("!");
+		static readonly _NotBits::Symbol = GSymbol.Get("~");
+		static readonly _ExpSet::Symbol = GSymbol.Get("**=");
+		static readonly _Exp::Symbol = GSymbol.Get("**");
+		static readonly _MulSet::Symbol = GSymbol.Get("*=");
+		static readonly _Mul::Symbol = GSymbol.Get("*");
+		static readonly _DivSet::Symbol = GSymbol.Get("/=");
+		static readonly _Div::Symbol = GSymbol.Get("/");
+		static readonly _ModSet::Symbol = GSymbol.Get("%=");
+		static readonly _Mod::Symbol = GSymbol.Get("%");
+		static readonly _AddSet::Symbol = GSymbol.Get("+=");
+		static readonly _Inc::Symbol = GSymbol.Get("++");
+		static readonly _Add::Symbol = GSymbol.Get("+");
+		static readonly _SubSet::Symbol = GSymbol.Get("-=");
+		static readonly _Dec::Symbol = GSymbol.Get("--");
+		static readonly _Sub::Symbol = GSymbol.Get("-");
+		static readonly _NullCoalesceSet::Symbol = GSymbol.Get("??=");
+		static readonly _NullCoalesce::Symbol = GSymbol.Get("??");
+		static readonly _NullDot::Symbol = GSymbol.Get("?.");
+		static readonly _QuestionMark::Symbol = GSymbol.Get("?");
+		static readonly _Substitute::Symbol = GSymbol.Get("$");
+		static readonly _Backslash::Symbol = GSymbol.Get("\\");
+		static readonly _Colon::Symbol = GSymbol.Get(":");
+		static readonly _PtrArrow::Symbol = GSymbol.Get("->");
 
 		// Shebang ---------------------------------------------------------------
 
@@ -311,7 +324,7 @@ namespace Ecs.Parser
 			/ "event"      (EndId=>{_type=TT.@event;      _value = S.Event;})
 			/ "explicit"   (EndId=>{_type=TT.AttrKeyword; _value = S.Explicit;})
 			/ "extern"     (EndId=>{_type=TT.AttrKeyword; _value = S.Extern;})
-			/ "false"      (EndId=>{_type=TT.OtherLit;    _value = BoxedFalse;})
+			/ "false"      (EndId=>{_type=TT.OtherLit;    _value = G.BoxedFalse;})
 			/ "finally"    (EndId=>{_type=TT.@finally;    _value = S.Finally;})
 			/ "fixed"      (EndId=>{_type=TT.@fixed;      _value = S.Fixed;})
 			/ "float"      (EndId=>{_type=TT.TypeKeyword; _value = S.Single;})
@@ -352,7 +365,7 @@ namespace Ecs.Parser
 			/ "switch"     (EndId=>{_type=TT.@switch;     _value = S.Switch;})
 			/ "this"       (EndId=>{_type=TT.(noMacro(@this));   _value = S.This;})
 			/ "throw"      (EndId=>{_type=TT.(noMacro(@throw));  _value = S.Throw;})
-			/ "true"       (EndId=>{_type=TT.OtherLit;    _value = BoxedTrue;})
+			/ "true"       (EndId=>{_type=TT.OtherLit;    _value = G.BoxedTrue;})
 			/ "try"        (EndId=>{_type=TT.@try;        _value = S.Try;})
 			/ "typeof"     (EndId=>{_type=TT.@typeof;     _value = S.Typeof;})
 			/ "uint"       (EndId=>{_type=TT.TypeKeyword; _value = S.UInt32;})
@@ -382,10 +395,21 @@ namespace Ecs.Parser
 			/ "dynamic"               (EndId=>{_type=TT.ContextualKeyword; _value = _dynamic;})
 			/ "trait"                 (EndId=>{_type=TT.ContextualKeyword; _value = _trait;})
 			/ "alias"                 (EndId=>{_type=TT.ContextualKeyword; _value = _alias;})
-			/ "where"                 (EndId=>{_type=TT.ContextualKeyword; _value = _where;})
 			/ "assembly"              (EndId=>{_type=TT.ContextualKeyword; _value = _assembly;})
 			/ "module"                (EndId=>{_type=TT.ContextualKeyword; _value = _module;})
 			/ "from"                  (EndId=>{_type=TT.ContextualKeyword; _value = _from;})
+			/ "where"                 (EndId=>{_type=TT.ContextualKeyword; _value = _where;})
+			/ "select"                (EndId=>{_type=TT.ContextualKeyword; _value = _select;})
+			/ "join"                  (EndId=>{OtherContextualKeyword();})
+			/ "on"                    (EndId=>{OtherContextualKeyword();})
+			/ "equals"                (EndId=>{OtherContextualKeyword();})
+			/ "into"                  (EndId=>{OtherContextualKeyword();})
+			/ "let"                   (EndId=>{OtherContextualKeyword();})
+			/ "orderby"               (EndId=>{OtherContextualKeyword();})
+			/ "ascending"             (EndId=>{OtherContextualKeyword();})
+			/ "descending"            (EndId=>{OtherContextualKeyword();})
+			/ "group"                 (EndId=>{OtherContextualKeyword();})
+			/ "by"                    (EndId=>{OtherContextualKeyword();})
 			/ "await"                 (EndId=>{_type=TT.ContextualKeyword; _value = _await;})
 			/ Id ];
 
@@ -393,11 +417,27 @@ namespace Ecs.Parser
 		static readonly _dynamic::Symbol = GSymbol.Get("dynamic");
 		static readonly _trait::Symbol = GSymbol.Get("trait");
 		static readonly _alias::Symbol = GSymbol.Get("alias");
-		static readonly _where::Symbol = GSymbol.Get("where");
 		static readonly _assembly::Symbol = GSymbol.Get("assembly");
 		static readonly _module::Symbol = GSymbol.Get("module");
-		static readonly _from::Symbol = GSymbol.Get("from");
 		static readonly _await::Symbol = GSymbol.Get("await");
+		
+		static readonly _where::Symbol = GSymbol.Get("where");
+		static readonly _select::Symbol = GSymbol.Get("select");
+		static readonly _from::Symbol = GSymbol.Get("from");
+		static readonly _join::Symbol = GSymbol.Get("join");
+		static readonly _on::Symbol = GSymbol.Get("on");
+		static readonly _equals::Symbol = GSymbol.Get("equals");
+		static readonly _into::Symbol = GSymbol.Get("into");
+		static readonly _let::Symbol = GSymbol.Get("let");
+		static readonly _orderby::Symbol = GSymbol.Get("orderby");
+		static readonly _ascending::Symbol = GSymbol.Get("ascending");
+		static readonly _descending::Symbol = GSymbol.Get("descending");
+		static readonly _group::Symbol = GSymbol.Get("group");
+		static readonly _by::Symbol = GSymbol.Get("by");
+		// This is used by EcsParser
+		internal static readonly LinqKeywords::HashSet!object = (new HashSet!object { 
+			_where; _select; _from; _join; _on; _equals; _into; _let; _orderby; _ascending; _descending; _group; _by
+		});
 
 		rule RestOfPPLine::string @[
 			{start::int = InputPosition;}
@@ -416,7 +456,7 @@ namespace Ecs.Parser
 		private token Token @[
 			( {_type = TT.Newline;}    Newline
 			| {_type = TT.Spaces;}     Spaces
-			| {_type = TT.Spaces;}     DotIndent // length-ambiguous with Operator .
+			/ {_type = TT.Spaces;}     DotIndent // length-ambiguous with Operator .
 			/ {_type = TT.Number;}     Number    // length-ambiguous with Operator .
 			/ {_type = TT.SLComment;}  SLComment // length-ambiguous with Operator /
 			/ {_type = TT.MLComment;}  MLComment // length-ambiguous with Operator /
@@ -430,6 +470,7 @@ namespace Ecs.Parser
 			/ {_type = TT.Symbol;}     Symbol    // length-ambiguous with At @
 			/ {_type = TT.At;}         At
 			/                          Operator
+			/ {_type = TT.Spaces;}     UTF_BOM
 			| {_type = TT.Comma;}      Comma
 			| {_type = TT.Semicolon;}  Semicolon
 			| {_type = TT.LParen;}     '('

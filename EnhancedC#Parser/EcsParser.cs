@@ -9,6 +9,7 @@ using Loyc.Syntax;
 using Loyc.Collections;
 using Loyc.Syntax.Lexing;
 
+/// <summary>Enhanced C# parser</summary>
 namespace Ecs.Parser
 {
 	using TT = TokenType;
@@ -27,7 +28,6 @@ namespace Ecs.Parser
 	{
 		protected IMessageSink _messages;
 		protected LNodeFactory F;
-		protected ISourceFile _sourceFile;
 		protected IListSource<Token> _tokensRoot;
 		protected IListSource<Token> _tokens;
 		// index into source text of the first token at the current depth (inside 
@@ -40,7 +40,6 @@ namespace Ecs.Parser
 			set { _messages = value ?? Loyc.MessageSink.Current; }
 		}
 		public IListSource<Token> TokenTree { get { return _tokensRoot; } }
-		public ISourceFile SourceFile { get { return _sourceFile; } }
 
 		static readonly Severity _Error = Severity.Error;
 		static readonly Severity _Warning = Severity.Warning;
@@ -103,7 +102,7 @@ namespace Ecs.Parser
 		{
 			int iPos = GetTextPosition(InputPosition);
 			SourcePos pos = _sourceFile.IndexToLine(iPos);
-			_messages.Write(Severity.Critical, pos, "Bug: unhandled exception in parser - " + ex.ExceptionTypeAndMessage());
+			_messages.Write(Severity.Critical, pos, "Bug: unhandled exception in parser - " + ex.ExceptionMessageAndType());
 		}
 
 		#region Methods required by base class and by LLLPG
@@ -130,13 +129,13 @@ namespace Ecs.Parser
 		{
 			_messages.Write(_Error, _sourceFile.IndexToLine(token.StartIndex), message, args);
 		}
-		protected override void Error(int inputPosition, string message)
+		protected override void Error(int lookaheadIndex, string message)
 		{
-			Error(inputPosition, message, InternalList<object>.EmptyArray);
+			Error(lookaheadIndex, message, EmptyArray<object>.Value);
 		}
-		protected void Error(int inputPosition, string message, params object[] args)
+		protected override void Error(int lookaheadIndex, string message, params object[] args)
 		{
-			int iPos = GetTextPosition(inputPosition);
+			int iPos = GetTextPosition(InputPosition + lookaheadIndex);
 			SourcePos pos = _sourceFile.IndexToLine(iPos);
 			_messages.Write(_Error, pos, message, args);
 		}
@@ -163,7 +162,7 @@ namespace Ecs.Parser
 			bool fail;
 			return _tokens.TryGet(InputPosition + i, out fail).Type();
 		}
-		const TokenType EOF = TT.EOF;
+		new const TokenType EOF = TT.EOF;
 
 		#endregion
 

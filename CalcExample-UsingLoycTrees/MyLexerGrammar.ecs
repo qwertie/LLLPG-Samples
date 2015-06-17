@@ -24,18 +24,18 @@ namespace MyLanguage
 			{
 				_startIndex = InputPosition;
 				_value = null;
-				@[ {_type = TT.Num;}                 Num
-				 | {_type = TT.Newline;}             Newline
-				 | {_type = TT.Id;}                  Id
-				 | {_type = TT.Mul; _value = S.Mul;} '*'
-				 | {_type = TT.Div; _value = S.Div;} '/'
-				 | {_type = TT.Add; _value = S.Add;} '+'
-				 | {_type = TT.Sub; _value = S.Sub;} '-'
-				 | {_type = TT.Set; _value = S.Set;} ':'? '='
-				 | {_type = TT.LParen;}              '('
-				 | {_type = TT.RParen;}              ')'
-				 | {_type = TT.Spaces;}              (' '|'\t')+
-				 | {_type = TT.Semicolon;}           ';'
+				@[ {_type = TT.Num;}                    Num
+				 | {_type = TT.Newline;}                Newline
+				 | {_type = TT.Id;}                     Id
+				 | {_type = TT.Mul; _value = S.Mul;}    '*'
+				 | {_type = TT.Div; _value = S.Div;}    '/'
+				 | {_type = TT.Add; _value = S.Add;}    '+'
+				 | {_type = TT.Sub; _value = S.Sub;}    '-'
+				 | {_type = TT.Set; _value = S.Assign;} ':'? '='
+				 | {_type = TT.LParen;}                 '('
+				 | {_type = TT.RParen;}                 ')'
+				 | {_type = TT.Spaces;}                 (' '|'\t')+
+				 | {_type = TT.Semicolon;}              ';'
 				 | error {_type = TT.EOF;} 
 				      [_ {_type = TT.Unknown;}]?
 				 ];

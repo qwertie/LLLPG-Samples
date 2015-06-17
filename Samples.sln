@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CalcExample-Standalone", "C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoycTreeExample", "CalcExample-UsingLoycTrees\LoycTreeExample.csproj", "{DC8C2059-EC43-4A79-96CA-A90F86545BE8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TryEcsParser", "EnhancedC#Parser\TryEcsParser.csproj", "{245A0392-2D46-42DE-A2E6-42A5454DE2F2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
@@ -25,6 +27,10 @@ Global
 		{DC8C2059-EC43-4A79-96CA-A90F86545BE8}.Debug|x86.Build.0 = Debug|x86
 		{DC8C2059-EC43-4A79-96CA-A90F86545BE8}.Release|x86.ActiveCfg = Release|x86
 		{DC8C2059-EC43-4A79-96CA-A90F86545BE8}.Release|x86.Build.0 = Release|x86
+		{245A0392-2D46-42DE-A2E6-42A5454DE2F2}.Debug|x86.ActiveCfg = Debug|x86
+		{245A0392-2D46-42DE-A2E6-42A5454DE2F2}.Debug|x86.Build.0 = Debug|x86
+		{245A0392-2D46-42DE-A2E6-42A5454DE2F2}.Release|x86.ActiveCfg = Release|x86
+		{245A0392-2D46-42DE-A2E6-42A5454DE2F2}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

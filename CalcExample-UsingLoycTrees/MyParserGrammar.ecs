@@ -34,7 +34,7 @@ namespace MyLanguage
 
 			private rule LNode Expr() @[
 				e:=AddExpr 
-				[ "=" rhs:=Expr {e = BinOp(S.Set, e, rhs);} ]?
+				[ "=" rhs:=Expr {e = BinOp(S.Assign, e, rhs);} ]?
 				{return e;}
 			];
 

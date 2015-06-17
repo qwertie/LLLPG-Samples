@@ -54,7 +54,7 @@ namespace MyLanguage
 				else
 					MessageSink.Console.Write(Severity.Error, tree, "'{0}' has no value assigned.", tree.Name);
 			} else { // IsCall
-				if (tree.Calls(S.Set, 2)) {
+				if (tree.Calls(S.Assign, 2)) {
 					if (tree.Args[0].IsId)
 						Vars[tree.Args[0].Name] = Compute(tree.Args[1]);
 					else
