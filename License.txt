@@ -1,0 +1,16 @@
+Unless otherwise specified by a header comment in an individual 
+source file, the software in the Loyc project and LLLPG are released under the terms of the GNU Lesser General Public 
+license version 2.1, or, at your option, any future version. Commercial usage is allowed and encouraged.
+
+Meanwhile, the demo source code (not including the EC# parser developed for Loyc and LLLPG)...
+
+- CalcExample-Standalone
+- CalcExample-UsingLoycLibs
+- CalcExample-UsingLoycTrees
+- LoycTreeExample
+
+...is hereby released into the public domain, or under the CC0 license where the concept of public domain is not recognized:
+
+http://creativecommons.org/publicdomain/zero/1.0/
+
+Author: David Piepgrass a.k.a. Qwertie

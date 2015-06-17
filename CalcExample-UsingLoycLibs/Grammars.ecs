@@ -1,0 +1,338 @@
+﻿/*
+	This contains a lexer and parser for a simple calculator. You can combine 
+	the lexer and parser in one file like this, or have separate files for each, 
+	or have 10 parsers in one file, whatever.
+
+	This example doesn't create a syntax tree, it just computes the result directly.
+
+	This file is compiled with the LLLPG (or LeMP) Custom Tool. Unfortunately, after
+	writing the custom tool I found out that Visual Studio does not invoke it 
+	automatically during a build (although it does invoke LLLPG automatically when
+	you save the file.) Meanwhile, the other obvious way of invoking LLLPG.exe, 
+	using a "pre-build event" command line, doesn't necessarily work correctly 
+	because the "pre-build event" sometimes runs after the C# compiler for some 
+	reason. Is there a third option? Leave a comment on the article:
+
+		http://www.codeproject.com/Articles/664785/A-New-Parser-Generator-for-Csharp
+
+	This is a Loyc-based example; the helper classes LexerSource and ParserSource
+	come from Loyc.Syntax.dll. To use that, you need the following references (which 
+	are bundled with LLLPG 1.3+ and also available in the NuGet module "LoycCore"):
+
+	    Loyc.Essentials.dll
+	    Loyc.Collections.dll
+	    Loyc.Syntax.dll
+	
+	These are far more than LLLPG support libraries: they include Symbols, collection 
+	types, wrapper types like BufferedSequence<T>, extension methods, and a built-in 
+	parser for Loyc Expression Syntax, a.k.a. "XML for code", a data language that 
+	looks like a programming language. The documentation at http://core.loyc.net has 
+	more information about these libraries, and I've blogged about them...
+	
+		http://loyc.net/doc/code/namespaceLoyc.html
+		http://loyc.net/2014/using-loycessentials-introduction.html
+	
+	Comments and blank lines are not yet propagated to the output (I'll work on 
+	that, eventually).
+	
+	*** This code is written in "Enhanced C#". Aside from possible bugs in the new
+	    EC# parser, it should accept any normal C# code (except LINQ which is not 
+		yet implemented) and the output code should be equivalent, but reformatted.
+*/
+#importMacros(Loyc.LLPG); // Only needed if compiling with Custom Tool = LeMP
+using System;
+using System.Text;
+using System.Collections.Generic;
+using System.Linq;
+using Loyc;
+using Loyc.Collections;
+using Loyc.Syntax.Lexing; // for LexerSource, ISimpleToken<int>
+using Loyc.Syntax;        // for ParserSource<Token>
+
+namespace CalcExample {
+	// First of all, LLLPG treats a Lexer and Parser as completely unrelated 
+	// entities, but I'd like to share some token information between the two. 
+	// I can use `replace` to replace all instances of an identifier with an 
+	// EC# syntax tree. Here I will use it to send my LITERAL_TOKEN_LIST to 
+	// multiple `unroll` commands; unroll's job is to generate code for each 
+	// tuple of items. These are features of LeMP (Lexical Macro Processor), 
+	// not LLLPG itself.
+	//
+	// Please read this article to learn more about `unroll` and `replace`:
+	// http://www.codeproject.com/Articles/995264/Avoid-tedious-coding-with-LeMP-Part
+	//
+	// A list of simple tokens to be represented literally (note: a slightly more
+	// sophisticated approach is needed for keywords, see LLLPG Part 5 article.)
+	replace (OPERATOR_TOKEN_LIST => (
+		(">>", Shr),    // Note: as a general rule, in your lexer you should list 
+		("<<", Shl),    // longer operators first. We will use this token list 
+		("=", Assign),  // in the lexer, so longer operators are listed first here.
+		(">",  GT),
+		("<",  LT),
+		("^",  Exp),
+		("*",  Mul),
+		("/",  Div),
+		("+",  Add),
+		("-",  Sub),
+		(";",  Semicolon),
+		("(",  LParen),
+		(")",  RParen)));
+	
+	using TT = TokenType; // Abbreviate TokenType as TT
+
+	// Usually you'll need an enum containing the kinds of tokens you'll recognize.
+	public enum TokenType
+	{
+		EOF = 0, // If you use EOF = 0, default(Token) represents EOF
+		Id,
+		Num,
+		unroll ((TEXT, TOKEN_NAME) in OPERATOR_TOKEN_LIST)
+		{
+			TOKEN_NAME; // inside 'unroll', must use ';' instead of ',' as separator
+		},
+		Unknown
+	}
+
+	// Here's a structure to hold info about each token. Or, just use 
+	// Loyc.Syntax.Lexing.Token:
+	// http://loyc.net/doc/code/structLoyc_1_1Syntax_1_1Lexing_1_1Token.html
+	// Note: ISimpleToken<TokenType> doesn't work because Microsoft decided 
+	// not to make enums equatable: TokenType is not IEquatable<TokenType>,
+	// so ParserSource cannot *efficiently* compare two enum values.
+	public struct Token : ISimpleToken<int>
+	{
+		public TokenType Type { get; set; }
+		public object Value   { get; set; }
+		public int StartIndex { get; set; }
+		int ISimpleToken<int>.Type { get { return (int)Type; } }
+	}
+
+	//--------------------------------------------------------------------------
+	//-- LEXER -----------------------------------------------------------------
+	//--------------------------------------------------------------------------
+
+	partial class CalculatorLexer : IEnumerator<Token>
+	{
+		LLLPG (lexer(inputSource = Src, inputClass = LexerSource)) {
+		
+		// The Src object provides the API used by LLLPG. It holds three things: 
+		// 1. The input data (Src.CharSource, a wrapper around the original
+		//    input string that implements ICharSource) 
+		// 2. The current input position (InputPosition), which is incremented
+		//    whenever a character is matched.
+		// 3. A "source file" object (Src.SourceFile, an implementation of
+		//    ISourceFile). It which holds an optional file name, and can 
+		//    convert a character index to a line+column pair with code like
+		//    Src.SourceFile.IndexToLine(index).Line
+		public LexerSource Src { get; set; }
+
+		public CalculatorLexer(string text, string fileName = "") 
+			{ Src = (LexerSource)text; }
+		public CalculatorLexer(ICharSource text, string fileName = "") 
+			{ Src = new LexerSource(text); }
+
+		Token _tok;
+		public Token Current
+		{
+			get { return _tok; }
+		}
+
+		// Three annoying extra things required by IEnumerator. To avoid writing
+		// these functions, set the base class to EnumeratorBase<Token>. (But if 
+		// you do that, MoveNext() must set the base class's Current property).
+		object System.Collections.IEnumerator.Current
+		{ 
+			get { return Current; }
+		}
+		void System.Collections.IEnumerator.Reset()
+		{
+			Src.Reset();
+		}
+		void IDisposable.Dispose() 
+		{
+		}
+
+		public token bool MoveNext()
+		{
+			@[ (' '|'\t')* ];  // Skip spaces between tokens
+			_tok.StartIndex = Src.InputPosition;
+			_tok.Value = null;
+			@[ { _tok.Type = TT.Num;    } Num
+			 | { _tok.Type = TT.Id;     } Id
+			 | { _tok.Type = TT.Num;    } ".nan" { _tok.Value = double.NaN; }
+			 | { _tok.Type = TT.Num;    } ".inf" { _tok.Value = double.PositiveInfinity; }
+			 | any punctuation // matches any of the punctuation rules
+			 | error           // error branch - if input matches none of the above
+			   { _tok.Type = TT.EOF; } (_ { _tok.Type = TT.Unknown; })? 
+			 ];
+			return _tok.Type != TT.EOF;
+		}
+		
+		private token Id() @[
+			('a'..'z'|'A'..'Z'|'_')
+			('a'..'z'|'A'..'Z'|'_'|'0'..'9')*
+			{ _tok.Value = Src.CharSource.Slice(_tok.StartIndex, Src.InputPosition - _tok.StartIndex).ToString(); }
+		];
+		private token Num() @[
+			(dot:'.')?
+			'0'..'9'+
+			(&{dot == 0} '.' '0'..'9'+)?
+			{ _tok.Value = double.Parse(Src.CharSource.Slice(_tok.StartIndex, Src.InputPosition - _tok.StartIndex).ToString()); }
+		];
+
+		// Use 'unroll' to generate a rule for each operator token. Note: LLLPG 
+		// and 'unroll' are unaware of each other, so we cannot use 'unroll' 
+		// inside grammar code. So instead of using 'unroll' in MoveNext(), I'm 
+		// creating a separate rule for each possible operator token.
+		unroll ((TEXT, TOKEN_NAME) in OPERATOR_TOKEN_LIST)
+		{
+			// 'extern' prevents a method from being generated for the rule.
+			// 'inline' causes this rule to be pasted whereever it is used.
+			// 'punctuation' is not a keyword. It is an extra tag that is 
+			// recognized by the 'any punctuation' command in NextToken().
+			extern inline punctuation rule TOKEN_NAME() { 
+				@[ TEXT ]; _tok.Type = TT.TOKEN_NAME;
+			}
+		}
+	}}
+
+	//--------------------------------------------------------------------------
+	//-- PARSER ----------------------------------------------------------------
+	//--------------------------------------------------------------------------
+
+	public partial class Calculator
+	{
+		// Now for the parsing section. Here we have a dictionary of variables 
+		// so users can write "x = 4" and have it saved. The Calculate() method
+		// is in charge of lexing and parsing; you can see it creates the Lexer
+		// and then calls the parser's top-level rule, which is Expr().
+
+		public Dictionary<string,double> Vars = new Dictionary<string,double>();
+		public ParserSource<Token> Src { get; set; } // LLLPG API
+
+		public double Calculate(string input)
+		{
+			Token EOF = new Token { Type = TT.EOF };
+			var lexer = new CalculatorLexer(input);
+			// ParserSource accepts any IEnumerator<Token> for its first parameter
+			Src = new ParserSource<Token>(lexer, EOF, lexer.Src.SourceFile);
+			
+			return ExprSequence();
+		}
+
+		static double Do(double left, Token op, double right)
+		{
+			switch (op.Type) {
+				case TT.Add: return left + right;
+				case TT.Sub: return left - right;
+				case TT.Mul: return left * right;
+				case TT.Div: return left / right;
+				case TT.Semicolon:  return right;
+			}
+			return double.NaN; // unreachable
+		}
+		
+		// Now, here's the parser! This parser doesn't produce a syntax tree like 
+		// most parsers, it simply calculates the result of the input expression
+		// directly (it's what we call a "traditional" interpreter, as opposed to
+		// modern interpreters that create a syntax tree and interpret that. 
+		// (A modern interpreter avoids the cost of parsing the code repeatedly 
+		// when the code contains loops.)
+		LLLPG (parser(laType = TokenType, matchType = int, 
+		              inputSource = Src, inputClass = ParserSource<Token>));
+
+		// A parser cannot directly match characters. You can, however, use
+		// aliases like «alias(":=" = TT.Assign);» to pretend that you're 
+		// matching strings. In reality, you're still matching the tokens 
+		// produced by the lexer. Here I use 'unroll' to make some aliases.
+		unroll ((TEXT, TOKEN_NAME) in OPERATOR_TOKEN_LIST) {
+			alias(TEXT = TT.TOKEN_NAME);
+		}
+
+		private rule double Atom() @[
+			( t:=TT.Id  { $result = Vars[(string) t.Value]; }
+			| t:=TT.Num { $result = (double) t.Value; }
+			| "(" result=ExprSequence ")"
+			| error     { $result = double.NaN; Src.Error(0, "Expected identifer, number, or (parens)"); }
+			)
+			greedy // see footnote below
+			[ "^" Atom { $result = Math.Pow(result, $Atom); } ]*
+		];
+		private rule double Term() @[
+			// Supports "mathy" expressions like 3(x-1)(x+1)
+			result:=Atom
+			[ rest:=Atom { result *= rest; } ]*
+			{ return result; }
+		];
+		rule double PrefixExpr() @
+			[ "-" r:=Term { return -r; }
+			| r:=Term     { return r; }
+			];
+		rule double MulExpr() @[ 
+			result:=PrefixExpr
+			(op:=("*"|"/") rhs:=PrefixExpr { result = Do(result, op, rhs); })*
+			{ return result; }
+		];
+		rule double AddExpr() @[
+			result:=MulExpr
+			(op:=("+"|"-") rhs:=MulExpr { result = Do(result, op, rhs); })*
+			{ return result; }
+		];
+		rule double AssignExpr() @[
+			// LLLPG recognizes $result as defining the method's return value
+			( t:=TT.Id "=" result:AssignExpr { Vars[t.Value.ToString()] = $result; }
+			| result:AddExpr )
+		];
+		rule double ExprSequence() @[
+			result:AssignExpr (";" result:AssignExpr)*
+		];
+
+		// Footnote about "greedy": As I was about to publish LLLPG 1.0, I added
+		// the ['^' Atom]* loop to Atom (for exponents like "2^x"), and LLLPG 
+		// reported an "ambiguity":
+		//
+		// Warning: ...: Alternatives (1, exit) are ambiguous for input such as 
+		// «TT.Exp TT.Id» (TT.Exp, (TT.Id|TT.Num|TT.LParen))
+		//
+		// In my heart, I felt like this ambiguity doesn't exist ('^' only shows
+		// up in one place in the whole grammar--how can it be ambiguous?). 
+		// However, this unusual problem seems hard to fix, so I'm not planning 
+		// to fix it; instead I just use "greedy" to suppress the warning 
+		// message.
+		//
+		// Let me tell you how LLLPG concludes that the loop is ambiguous. 
+		// Because of the loop ['^' Atom]*, which is located at the end of Atom,
+		// you can write "Atom ^ Atom ^ Atom", so, clearly, an Atom can be 
+		// followed be followed by "^ Atom". Therefore, Atom's follow set 
+		// includes "^ Atom". So when LLLPG compares alternative 1 (the 
+		// loop body) with the exit condition, it detects that both paths can
+		// start with "TT.Exp (TT.Id|TT.Num|TT.LParen)", and it concludes that 
+		// alternatives (1, exit) are ambiguous.
+		//
+		// What went wrong? Actually, LLLPG's analysis makes a lot of sense;
+		// The loop really is in conflict with itself.
+		//
+		// Adding "greedy" was the simplest fix. The warning also disappears
+		// if Atom is split into two rules (Atom and ExpExpr), like so:
+		//
+		//	private rule double Atom() @[
+		//		{ double result; }
+		//		( t:=TT.Id  { result = Vars[(string) t.Value]; }
+		//		| t:=TT.Num { result = (double) t.Value; }
+		//		| '(' result=Expr ')'
+		//		| error     { result = double.NaN; Error(0, "Expected identifer, number, or (parens)"); }
+		//		)
+		//		{ return result; }
+		//	];
+		//	private rule double ExpExpr() @[
+		//		result:=Atom
+		//		[ '^' exp:=Atom { result = Math.Pow(result, exp); } ]*
+		//		{return result;}
+		//	];
+		//	private rule double Term() @[
+		//		result:=ExpExpr
+		//		[ rest:=ExpExpr { result *= rest; } ]*
+		//		{ return result; }
+		//	];
+	}
+} // end namespace

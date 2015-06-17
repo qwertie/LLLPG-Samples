@@ -1,0 +1,337 @@
+﻿/*
+	This contains a lexer and parser for a simple calculator. You can combine 
+	the lexer and parser in one file like this, or have separate files for each, 
+	or have 10 parsers in one file, whatever.
+
+	The parser here doesn't create a syntax tree, it just computes the result 
+	directly.
+
+	This file is compiled with the LLLPG Custom Tool. Unfortunately, after
+	writing the custom tool I found out that Visual Studio does not invoke it 
+	automatically during a build (although it does invoke LLLPG automatically when
+	you save the file.) Meanwhile, the other obvious way of invoking LLLPG.exe, 
+	using a "pre-build event" command line, doesn't necessarily work correctly 
+	because the "pre-build event" sometimes runs after the C# compiler for some 
+	reason. Is there a third option? Leave a comment on the article:
+
+		http://www.codeproject.com/Articles/664785/A-New-Parser-Generator-for-Csharp
+
+	This is a standalone example, in which the base classes BaseParser and BaseLexer
+	are in this project. The Loyc library Loyc.Syntax.dll has a slightly different
+	version of the base classes; to use that version you'd have to add the 
+	following references (which are bundled with LLLPG):
+
+	    Loyc.Essentials.dll
+	    Loyc.Collections.dll
+	    Loyc.Syntax.dll
+	
+	The documentation at http://loyc.net has more information about these libraries,
+	and I just started blogging about them:
+	
+		http://loyc-etc.blogspot.ca/2014/01/using-loycessentials-introduction.html
+	
+	But currently, most of the documentation for Loyc.* DLLs is in the Loyc source 
+	code (SVN repository, e.g. TortoiseSVN), not on the web.
+	
+	Comments and newlines are not yet propagated to the output (I'll work on that,
+	eventually).
+	
+	*** This is the LES version of the code. LLLPG now also supports "Enhanced C#" 
+	    as an input language. LLLPG can choose a parser based on file extension.
+*/
+import macros LeMP.Prelude.Les;
+import System;
+import System.Text;
+import System.Collections.Generic;
+import System.Linq;
+import Loyc;
+import Loyc.Syntax.Lexing; // for BaseLexer
+import Loyc.Syntax;        // for BaseParser
+
+namespace CalcExample
+{
+	using TT = TokenType; // Abbreviate TokenType as TT
+
+	public enum TokenType
+	{
+		EOF = -1; // LLLPG lexers assume -1 means EOF (while parsers use "EOF" for EOF)
+		Space; Id; Num; 
+		Set; Mul; Div; Add; Sub; Exp;
+		LParen; RParen; Unknown;
+	};
+
+	// Information about each token is bundled into one of these structures
+	public struct Token {
+		public Type::TokenType;
+		public Value::object;
+		public StartIndex::int;
+	};
+
+	//--------------------------------------------------------------------------
+	//-- LEXER -----------------------------------------------------------------
+	//--------------------------------------------------------------------------
+
+	class CalculatorLexer(BaseLexer!(List!char))
+	{
+		public cons CalculatorLexer(charSource::List!char)
+		{
+			base(charSource);
+		};
+		protected override def Error(inputPosition::int, message::string)
+		{
+			Console.WriteLine("At index {0}: {1}", inputPosition, message);
+		};
+
+		_type::TokenType;
+		_value::object;
+		_startIndex::int;
+
+		LLLPG lexer
+		{
+			public token NextToken()::Token {
+				_startIndex = InputPosition;
+				_value = null;
+				@[ { _type = TT.Num; } Num
+				 | { _type = TT.Id;  } Id
+				 | { _type = TT.Exp; } '^'
+				 | { _type = TT.Mul; } '*'
+				 | { _type = TT.Div; } '/'
+				 | { _type = TT.Add; } '+'
+				 | { _type = TT.Sub; } '-'
+				 | { _type = TT.Set; } ":="
+				 | { _type = TT.Num; } ".nan" { _value = double.NaN; }
+				 | { _type = TT.Num; } ".inf" { _value = double.PositiveInfinity; }
+				 | { _type = TT.LParen; } '('
+				 | { _type = TT.RParen; } ')'
+				 | { _type = TT.Space; } (' '|'\t')
+				 | error
+				 { _type = TT.EOF; } (_ { _type = TT.Unknown; })? ];
+				return (new Token() { 
+					Type = _type; Value = _value; StartIndex = _startIndex;
+				});
+			};
+
+			static def Substring(list::List!char, start::int, count::int)::string
+			{
+				var sb = (new StringBuilder(count));
+				for (i::int = start, i < start + count, i++)
+					sb.Append(list[i]);
+				return sb.ToString();
+			};
+
+			private token Id() @[
+				('a'..'z'|'A'..'Z'|'_')
+				('a'..'z'|'A'..'Z'|'_'|'0'..'9')*
+				{ _value = Substring(CharSource, _startIndex, InputPosition - _startIndex); }
+			];
+			private token Num() @[
+				{dot::bool = @false;}
+				('.' {dot = @true;})?
+				'0'..'9'+
+				(&!{dot} '.' '0'..'9'+)?
+				{ _value = double.Parse(Substring(CharSource, _startIndex, InputPosition - _startIndex)); }
+			];
+		};
+	};
+
+	//--------------------------------------------------------------------------
+	//-- PARSER ----------------------------------------------------------------
+	//--------------------------------------------------------------------------
+
+	public partial class Calculator(BaseParser!Token)
+	{
+		// Now for the parsing section. Here we have a dictionary of variables 
+		// so users can write "x := 4" and have it saved. The Calculate() method
+		// is in charge of lexing and parsing; you can see it invokes the Lexer
+		// and then calls the parser's top-level rule, which is Expr().
+
+		public Vars::Dictionary!(string,double) = new(Dictionary!(string,double)());
+		_tokens::List!Token = new List!Token();
+		_input::string;
+				
+		public def Calculate(input::string)::double
+		{
+			_input = input;
+
+			// Grab all tokens from the lexer, ignoring spaces
+			var lexer = (new CalculatorLexer(input.ToList()));
+			_tokens.Clear();
+			t::Token;
+			while ((t = lexer.NextToken()).Type != EOF) {
+				if (t.Type != TT.Space)
+					_tokens.Add(t);
+			};
+
+			// Run the parser
+			InputPosition = 0; // also causes BaseParser to cache LT(0)
+			return Expr();
+		};
+
+		// These are the helper methods required by BaseParser, followed by 
+		// a couple of things required by LLLPG itself (EOF, LA0, LA(i)). The 
+		// difference between "LA" and "LT" is that "LA" refers to the lookahead 
+		// token type (e.g. TT.Num, TT.Add, etc.), while "LT" refers to the entire 
+		// token (that's the Token structure, in this example.) LLLPG itself only 
+		// requires LA, but BaseParser assumes that there is also a "Token" struct 
+		// or class; this is the type returned by its Match() methods.
+
+		protected override def EofInt()::int { return EOF -> int; };
+		protected override prop LA0Int::int { get { return LT0.Type -> int; }; };
+		protected override def LT(i::int)::Token
+		{
+			i += InputPosition;
+			if i < _tokens.Count { 
+				return _tokens[i]; 
+			} else { 
+				return (new Token { Type = EOF });
+			};
+		};
+		protected override def Error(lookahead::int, message::string)
+		{
+			tIndex::int = InputPosition + lookahead;
+			cIndex::int = _input.Length;
+			if (tIndex < _tokens.Count)
+				cIndex = _tokens[tIndex].StartIndex;
+			throw (new Exception(string.Format("Error at index {0}: {1}", cIndex, message)));
+		};
+		protected override def ToString(tokenType::int)::string
+		{
+			switch tokenType -> TT {
+				case TT.Id; return "identifier";
+				case TT.Num; return "number";
+				case TT.Set; return "':='";
+				case TT.LParen; return "'('";
+				case TT.RParen; return "')'";
+				default; return (tokenType->TokenType).ToString();
+			};
+		};
+		
+		const EOF::TokenType = TT.EOF;
+		prop LA0::TokenType { get { return LT0.Type; } };
+		def LA(offset::int)::TokenType { return LT(offset).Type; };
+
+
+		def Do(left::double, op::Token, right::double)::double
+		{
+			switch op.Type {
+				case TT.Add; return left + right;
+				case TT.Sub; return left - right;
+				case TT.Mul; return left * right;
+				case TT.Div; return left / right;
+			};
+			return double.NaN; // unreachable
+		};
+
+		// Now, here's the parser! This parser doesn't produce a syntax tree like 
+		// most parsers, it simply calculates the result of the input expression
+		// directly (it's what we call a "traditional" interpreter, as opposed to
+		// modern interpreters that create a syntax tree and interpret that. 
+		// Modern interpreters avoid the cost of parsing the code repeatedly when 
+		// the code contains loops.)
+		LLLPG parser(laType(TokenType), matchType(int))
+		{
+			// A parser cannot directly match characters. You can, however, use
+			// aliases like these to pretend that you're matching characters.
+			// In reality you're still matching tokens produced by the lexer.
+			// The "alias" command is consumed by LLLPG, and doesn't work outside
+			// of an LLLPG block. Aliases are replaced inside grammar fragments 
+			// (@[...]) but not inside {actions} or inside &{semantic predicates}.
+			alias('(' = TT.LParen);
+			alias(')' = TT.RParen);
+			alias('^' = TT.Exp);
+			alias('*' = TT.Mul);
+			alias('/' = TT.Div);
+			alias('+' = TT.Add);
+			alias('-' = TT.Sub);
+			alias(":=" = TT.Set);
+
+			private rule Atom()::double @[
+				{ result::double; }
+				( t:=TT.Id  { result = Vars[t.Value -> string]; }
+				| t:=TT.Num { result = t.Value -> double; }
+				| '(' result=Expr ')'
+				| error     { result = double.NaN; Error(InputPosition, "Expected identifer, number, or (parens)"); }
+				)
+				greedy // see footnote below
+				[ '^' exp:=Atom { result = Math.Pow(result, exp); } ]*
+				{ return result; }
+			];
+			private rule Term()::double @[
+				// Supports "mathy" expressions like 3(x-1)(x+1)
+				result:=Atom
+				[ rest:=Atom { result *= rest; } ]*
+				{ return result; }
+			];
+			rule PrefixExpr()::double @
+				[ '-' r:=Term { return (-r); }
+				| r:=Term     { return r; }
+				];
+			rule MulExpr()::double @[ 
+				result:=PrefixExpr
+				(op:=('*'|'/') rhs:=PrefixExpr { result = Do(result, op, rhs); })*
+				{ return result; }
+			];
+			rule AddExpr()::double @[
+				result:=MulExpr
+				(op:=('+'|'-') rhs:=MulExpr { result = Do(result, op, rhs); })*
+				{ return result; }
+			];
+			rule Expr()::double @[
+				{ result::double; }
+				( t:=TT.Id ":=" result=Expr { Vars[t.Value.ToString()] = result; }
+				| result=AddExpr )
+				{ return result; }
+			];
+
+			// Footnote about "greedy": As I was about to publish LLLPG 1.0, I added
+			// the ['^' Atom]* loop to Atom (for exponents like "2^x"), and LLLPG 
+			// reported an "ambiguity":
+			//
+			// Warning: ...: Alternatives (1, exit) are ambiguous for input such as 
+			// «TT.Exp TT.Id» (TT.Exp, (TT.Id|TT.Num|TT.LParen))
+			//
+			// In my heart, I feel like this ambiguity doesn't exist ('^' only shows
+			// up in one place in the whole grammar--how can it be ambiguous?). 
+			// However, this unusual problem seems hard to fix, so I'm not planning 
+			// to fix it; instead I just use "greedy" to suppress the warning 
+			// message.
+			//
+			// Let me tell you how LLLPG concludes that the loop is ambiguous. 
+			// Because of the loop ['^' Atom]*, which is located at the end of Atom,
+			// you can write "Atom ^ Atom ^ Atom", so, clearly, an Atom can be 
+			// followed be followed by "^ Atom". Therefore, Atom's follow set 
+			// includes "^ Atom". So when LLLPG compares alternative 1 (the 
+			// loop body) with the exit condition, it detects that both paths can
+			// start with "TT.Exp (TT.Id|TT.Num|TT.LParen)", and it concludes that 
+			// alternatives (1, exit) are ambiguous.
+			//
+			// What went wrong? Actually, LLLPG's analysis makes a lot of sense, and
+			// I'm not sure where the analysis is wrong. The loop is in conflict 
+			// with itself, but how could LLLPG detect that and avoid printing a 
+			// warning?
+			//
+			// Adding "greedy" was the simplest fix. The warning also disappears
+			// if Atom is split into two rules (Atom and ExpExpr), like so:
+			//
+			//	private rule double Atom() @[
+			//		{ double result; }
+			//		( t:=TT.Id  { result = Vars[(string) t.Value]; }
+			//		| t:=TT.Num { result = (double) t.Value; }
+			//		| '(' result=Expr ')'
+			//		| error     { result = double.NaN; Error(InputPosition, "Expected identifer, number, or (parens)"); }
+			//		)
+			//		{ return result; }
+			//	];
+			//	private rule double ExpExpr() @[
+			//		result:=Atom
+			//		[ '^' exp:=Atom { result = Math.Pow(result, exp); } ]*
+			//		{return result;}
+			//	];
+			//	private rule double Term() @[
+			//		result:=ExpExpr
+			//		[ rest:=ExpExpr { result *= rest; } ]*
+			//		{ return result; }
+			//	];
+		};
+	};
+};
