@@ -1,0 +1,159 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Text;
+
+namespace Loyc.Syntax
+{
+	/// <summary>
+	/// An base class designed for parsers that use LLLPG (Loyc LL(k) Parser 
+	/// Generator) and receive tokens from any <see cref="IEnumerator{Token}"/>.
+	/// (Potentially also useful for parsers written by hand.)
+	/// </summary>
+	/// <remarks>
+	/// This is the standalone version that does not require references to
+	/// Loyc.Essentials.dll, Loyc.Collections.dll and Loyc.Syntax.dll. It was 
+	/// adapted from the original version in Loyc.Syntax.dll.
+	/// <para/>
+	/// The compiler will ensure that you use this base class correctly. All you 
+	/// have to do is call the base class constructor and override the abstract 
+	/// methods <see cref="ToString(MatchType)"/>.
+	/// </remarks>
+	/// <typeparam name="Token">Data type of complete tokens in the token list. A 
+	/// token contains the type of a "word" in the program (string, identifier, plus 
+	/// sign, etc.), a value (e.g. the name of an identifier), and a range of 
+	/// characters in the source file. See <see cref="ISimpleToken{MatchType}"/>.
+	/// Note: Token is usually a small struct; this class assumes that it will 
+	/// never be null.</typeparam>
+	/// <typeparam name="MatchType">A data type, usually int, that represents a 
+	/// token type (identifier, operator, etc.) and implements <see cref="IEquatable{T}"/>
+	/// so it can be compared for equality with other token types; this is also the 
+	/// type of the <see cref="ISimpleToken{Matchtype}.Type"/> property.</typeparam>
+	public abstract class BaseParserForList<Token, MatchType> : BaseParser<Token, MatchType>
+		where Token : ISimpleToken<MatchType>
+		where MatchType : IEquatable<MatchType>
+	{
+		/// <summary>Initializes this object to begin parsing the specified tokens.</summary>
+		/// <param name="list">A list of tokens that the derived class will parse.</param>
+		/// <param name="eofToken">A token value to return when the input position 
+		/// reaches the end of the token list. Ideally <c>eofToken.StartIndex</c>
+		/// should contain the position of EOF, but the base class method
+		/// <see cref="BaseParser{Tok,MT}.LaIndexToCharIndex"/> does not trust this
+		/// value, and will ensure that the character index returned for EOF is at 
+		/// least as large as the character index of the last token in the file. 
+		/// This means that it is safe to set <c>ISimpleToken{MatchType}.StartIndex</c> 
+		/// to 0 in the EOF token, because when an error message involves EOF, the
+		/// base class will find a more accurate EOF position.</param>
+		/// <param name="file">A source file object that will be returned by the 
+		/// <param name="startIndex">The initial index from which to start reading
+		/// tokens from the list (normally 0).</param>
+		protected BaseParserForList(IList<Token> list, Token eofToken, int startIndex = 0)
+			: base(startIndex)
+		{
+			Reset(list, eofToken, startIndex);
+		}
+
+		/// <summary>Reinitializes the object. This method is called by the constructor.</summary>
+		/// <remarks>See the constructor for documentation of the parameters.</remarks>
+		protected virtual void Reset(IList<Token> list, Token eofToken, int startIndex = 0)
+		{
+			EofToken = eofToken;
+			EOF = EofToken.Type;
+			_tokenList = list;
+			InputPosition = startIndex;
+		}
+		protected void Reset()
+		{
+			Reset(TokenList, EofToken);
+		}
+
+		public MatchType EOF { get; protected set; }
+		protected Token EofToken;
+
+		/// <summary>The IList{Token} that was provided to the constructor, if any.</summary>
+		/// <remarks>Note: if you are starting to parse a new source file, you should call 
+		/// <see cref="Reset"/> instead of setting this property.</remarks>
+		protected IList<Token> TokenList { get { return _tokenList; } }
+		protected IList<Token> _tokenList;
+		// cached list size to avoid frequently calling the virtual Count property.
+		// (don't worry, it's updated automatically by LT() if the list size changes)
+		private int _listCount;
+
+		protected sealed override MatchType EofInt() { return EOF; }
+		protected sealed override MatchType LA0Int { get { return _lt0.Type; } }
+		protected sealed override Token LT(int i)
+		{
+			i += InputPosition;
+			if ((uint)i < (uint)_listCount || (uint)i < (uint)(_listCount = _tokenList.Count)) {
+				try {
+					return _tokenList[i];
+				} catch {
+					_listCount = _tokenList.Count;
+				}
+			}
+			return EofToken;
+		}
+
+		protected MatchType LA(int i) { return LT(i).Type; }
+		protected MatchType LA0 { get { return _lt0.Type; } }
+		
+		/// <summary>Returns a string representation of the specified token type.
+		/// These strings are used in error messages.</summary>
+		protected override abstract string ToString(MatchType tokenType);
+
+		protected new int InputPosition
+		{
+			[DebuggerStepThrough]
+			get { return _inputPosition; }
+			set {
+				_inputPosition = value;
+				_lt0 = LT(0);
+			}
+		}
+
+		#region Down & Up
+		// These are used to traverse into token subtrees, e.g. given w=(x+y)*z, 
+		// the outer token list is w=()*z, and the 3 tokens x+y are children of '('
+		// So the parser calls something like Down(lparen) to begin parsing inside,
+		// then it calls Up() to return to the parent tree.
+
+		private Stack<KeyValuePair<IList<Token>, int>> _parents;
+
+		/// <summary>Switches to parsing the specified token list at position zero
+		/// (typically the value of <see cref="Token.Children"/> in a token tree 
+		/// produced by <see cref="TokensToTree"/>.) The original token list and
+		/// the original <see cref="InputPosition"/> are placed on a stack, so you
+		/// can restore the old list by calling <see cref="Up()"/>.</summary>
+		/// <returns>True if successful, false if <c>children</c> is null.</returns>
+		protected bool Down(IList<Token> children)
+		{
+			if (children != null)
+			{
+				if (_parents == null)
+					_parents = new Stack<KeyValuePair<IList<Token>, int>>();
+				_parents.Push(new KeyValuePair<IList<Token>,int>(_tokenList, InputPosition));
+				_tokenList = children;
+				InputPosition = 0;
+				return true;
+			}
+			return false;
+		}
+		/// <summary>Returns to the old token list saved by <see cref="Down"/>.</summary>
+		protected void Up()
+		{
+			Debug.Assert(_parents.Count > 0);
+			var pair = _parents.Pop();
+			_tokenList = pair.Key;
+			InputPosition = pair.Value;
+		}
+		/// <summary>Calls <see cref="Up()"/> and returns <c>value</c>.</summary>
+		protected T Up<T>(T value)
+		{
+			Up();
+			return value;
+		}
+
+		#endregion
+	}
+}

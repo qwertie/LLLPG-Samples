@@ -5,11 +5,11 @@
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{03B6304E-FF66-4468-A7E0-92AA6E543E99}</ProjectGuid>
+    <ProjectGuid>{DC8C2059-EC43-4A79-96CA-A90F86545BE8}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>CalcExample</RootNamespace>
-    <AssemblyName>CalcExample</AssemblyName>
+    <RootNamespace>MyLanguage</RootNamespace>
+    <AssemblyName>LoycTreeExample</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <TargetFrameworkProfile>Client</TargetFrameworkProfile>
     <FileAlignment>512</FileAlignment>
@@ -38,20 +38,16 @@
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BaseLexer.cs" />
-    <Compile Include="BaseParser.cs" />
-    <Compile Include="Grammars.cs">
+    <Compile Include="MyGrammars.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
-      <DependentUpon>Grammars.ecs</DependentUpon>
+      <DependentUpon>MyGrammars.ecs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Grammars.ecs">
+    <None Include="MyGrammars.ecs">
       <Generator>LLLPG</Generator>
-      <LastGenOutput>Grammars.cs</LastGenOutput>
+      <LastGenOutput>MyGrammars.cs</LastGenOutput>
     </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

@@ -1,7 +1,10 @@
 ﻿/*
 	This contains a lexer and parser for a simple calculator. You can combine 
 	the lexer and parser in one file like this, or have separate files for each, 
-	or have 10 parsers in one file, whatever.
+	or have 10 parsers in one file, whatever. But this version of the calculator
+	uses some more advanced techniques involving `replace` and `unroll` to share
+	a table of information called OPERATOR_TOKEN_LIST between the lexer and parser.
+	You can only do this if the lexer and parser are defined in the same file.
 
 	This example doesn't create a syntax tree, it just computes the result directly.
 
@@ -86,7 +89,7 @@ namespace CalcExample {
 		EOF = 0, // If you use EOF = 0, default(Token) represents EOF
 		Id,
 		Num,
-		unroll ((TEXT, TOKEN_NAME) in OPERATOR_TOKEN_LIST)
+		unroll ((_, TOKEN_NAME) in OPERATOR_TOKEN_LIST)
 		{
 			TOKEN_NAME; // inside 'unroll', must use ';' instead of ',' as separator
 		},
@@ -113,7 +116,7 @@ namespace CalcExample {
 
 	partial class CalculatorLexer : IEnumerator<Token>
 	{
-		LLLPG (lexer(inputSource = Src, inputClass = LexerSource)) {
+		LLLPG (lexer(inputSource = Src, inputClass = LexerSource));
 		
 		// The Src object provides the API used by LLLPG. It holds three things: 
 		// 1. The input data (Src.CharSource, a wrapper around the original
@@ -194,7 +197,7 @@ namespace CalcExample {
 				@[ TEXT ]; _tok.Type = TT.TOKEN_NAME;
 			}
 		}
-	}}
+	}
 
 	//--------------------------------------------------------------------------
 	//-- PARSER ----------------------------------------------------------------

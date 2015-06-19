@@ -5,11 +5,11 @@
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{DC8C2059-EC43-4A79-96CA-A90F86545BE8}</ProjectGuid>
+    <ProjectGuid>{03B6304E-FF66-4468-A7E0-92AA6E543E99}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>MyLanguage</RootNamespace>
-    <AssemblyName>LoycTreeExample</AssemblyName>
+    <RootNamespace>CalcExample</RootNamespace>
+    <AssemblyName>CalcExample</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <TargetFrameworkProfile>Client</TargetFrameworkProfile>
     <FileAlignment>512</FileAlignment>
@@ -34,40 +34,28 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Loyc.Collections">
-      <HintPath>..\LLLPG\Loyc.Collections.dll</HintPath>
-    </Reference>
-    <Reference Include="Loyc.Essentials">
-      <HintPath>..\LLLPG\Loyc.Essentials.dll</HintPath>
-    </Reference>
-    <Reference Include="Loyc.Syntax">
-      <HintPath>..\LLLPG\Loyc.Syntax.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="MyParserGrammar.ecs">
-      <Generator>LLLPG</Generator>
-      <LastGenOutput>MyParserGrammar.cs</LastGenOutput>
-    </None>
-    <Compile Include="MyLexer.cs" />
-    <Compile Include="MyLexerGrammar.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>MyLexerGrammar.ecs</DependentUpon>
+    <Compile Include="LexerSource.cs">
+      <SubType>Code</SubType>
     </Compile>
-    <Compile Include="MyParser.cs" />
-    <Compile Include="MyParserGrammar.cs">
+    <Compile Include="ParserSource.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Grammars.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
-      <DependentUpon>MyParserGrammar.ecs</DependentUpon>
+      <DependentUpon>Grammars.ecs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <None Include="MyLexerGrammar.ecs">
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Grammars.ecs">
       <Generator>LLLPG</Generator>
-      <LastGenOutput>MyLexerGrammar.cs</LastGenOutput>
+      <LastGenOutput>Grammars.cs</LastGenOutput>
     </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

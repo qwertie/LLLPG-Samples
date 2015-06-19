@@ -55,62 +55,55 @@ namespace CalcExample
 
 	public enum TokenType
 	{
-		EOF = -1, // LLLPG lexers assume -1 means EOF (while parsers use "EOF" for EOF)
+		EOF = -1, // LLLPG lexers assume -1 means EOF (but parsers use "EOF" for EOF)
 		Space, Id, Num, 
 		Set, Mul, Div, Add, Sub, Exp,
-		LParen, RParen, Unknown,
+		LParen, RParen, Unknown
 	}
 
 	// Information about each token is bundled into one of these structures
-	public struct Token {
-		public TokenType Type;
-		public object Value;
-		public int StartIndex;
+	public struct Token : ISimpleToken<int> {
+		public TokenType Type { get; set; }
+		public object Value   { get; set; }
+		public int StartIndex { get; set; }
+		int ISimpleToken<int>.Type { get { return (int)Type; } }
 	}
 
 	//--------------------------------------------------------------------------
 	//-- LEXER -----------------------------------------------------------------
 	//--------------------------------------------------------------------------
 
-	class CalculatorLexer : BaseLexer<List<char>>
+	class CalculatorLexer
 	{
-		public CalculatorLexer(List<char> charSource) : base(charSource)
+		LexerSource _src;
+
+		public CalculatorLexer(string charSource)
 		{
-		}
-		protected override void Error(int lookahead, string message)
-		{
-			Console.WriteLine("At index {0}: {1}", InputPosition + lookahead, message);
+			_src = new LexerSource(charSource);
 		}
 
 		TokenType _type;
 		object _value;
 		int _startIndex;
 
-		LLLPG (lexer)
+		LLLPG (lexer(inputSource: _src, inputClass: LexerSource))
 		{
 			private token Id() @[
 				('a'..'z'|'A'..'Z'|'_')
 				('a'..'z'|'A'..'Z'|'_'|'0'..'9')*
-				{ _value = Substring(CharSource, _startIndex, InputPosition - _startIndex); }
+				{ _value = _src.CharSource.Substring(_startIndex, _src.InputPosition - _startIndex); }
 			];
 			private token Num() @[
 				{bool dot = false;}
 				('.' {dot = true;})?
 				'0'..'9'+
 				(&!{dot} '.' '0'..'9'+)?
-				{ _value = double.Parse(Substring(CharSource, _startIndex, InputPosition - _startIndex)); }
+				{ _value = double.Parse(_src.CharSource.Substring(_startIndex, _src.InputPosition - _startIndex)); }
 			];
 
-			static string Substring(List<char> list, int start, int count)
-			{
-				var sb = new StringBuilder(count);
-				for (int i = start; i < start + count; i++)
-					sb.Append(list[i]);
-				return sb.ToString();
-			}
 			public token Token NextToken()
 			{
-				_startIndex = InputPosition;
+				_startIndex = _src.InputPosition;
 				_value = null;
 				@[ { _type = TT.Num; } Num
 				 | { _type = TT.Id;  } Id
@@ -126,7 +119,9 @@ namespace CalcExample
 				 | { _type = TT.RParen; } ')'
 				 | { _type = TT.Space; } (' '|'\t')
 				 | error
-				 { _type = TT.EOF; } (_ { _type = TT.Unknown; })? ];
+				   { _type = TT.EOF; } 
+				   ( { _type = TT.Unknown; _src.Error(0, "Unexpected character"); } _)?
+				];
 				return new Token() { 
 					Type = _type, Value = _value, StartIndex = _startIndex
 				};
@@ -138,64 +133,39 @@ namespace CalcExample
 	//-- PARSER ----------------------------------------------------------------
 	//--------------------------------------------------------------------------
 
-	public partial class Calculator : BaseParser<Token>
+	public partial class Calculator
 	{
 		// Now for the parsing section. Here we have a dictionary of variables 
 		// so users can write "x := 4" and have it saved. The Calculate() method
 		// is in charge of lexing and parsing; you can see it invokes the Lexer
 		// and then calls the parser's top-level rule, which is Expr().
 
+		public ParserSource<Token> _src;
+
 		public Dictionary<string,double> Vars = new Dictionary<string,double>();
 		List<Token> _tokens = new List<Token>();
-		string _input;
 
 		public double Calculate(string input)
 		{
-			_input = input;
-
 			// Grab all tokens from the lexer, ignoring spaces
-			var lexer = new CalculatorLexer(input.ToList());
+			var lexer = new CalculatorLexer(input);
 			_tokens.Clear();
 			Token t;
-			while (((t = lexer.NextToken()).Type != EOF)) {
+			while (((t = lexer.NextToken()).Type != TT.EOF)) {
 				if ((t.Type != TT.Space))
 					_tokens.Add(t);
 			}
+
+			_src = new ParserSource<Token>(_tokens, new Token { Type=TT.EOF }) {
+				TokenTypeToString = TokenTypeToString
+			};
 			
 			// Run the parser
-			InputPosition = 0; // also causes BaseParser to cache LT(0)
 			return Expr();
 		}
 
-		#region Methods & properties required by BaseParser and LLLPG
-		// These are the helper methods required by BaseParser, followed by 
-		// a couple of things required by LLLPG itself (EOF, LA0, LA(i)). The 
-		// difference between "LA" and "LT" is that "LA" refers to the lookahead 
-		// token type (e.g. TT.Num, TT.Add, etc.), while "LT" refers to the entire 
-		// token (that's the Token structure, in this example.) LLLPG itself only 
-		// requires LA(i), but BaseParser assumes that there is also a "Token" 
-		// struct or class; this is the type returned by its Match() methods.
-
-		protected override int EofInt() { return (int) EOF; }
-		protected override int LA0Int { get { return (int) LT0.Type; } }
-		protected override Token LT(int i)
-		{
-			i += InputPosition;
-			if (i < _tokens.Count) {
-				return _tokens[i];
-			} else {
-				return new Token { Type = EOF };
-			}
-		}
-		protected override void Error(int lookahead, string message)
-		{
-			int tIndex = InputPosition + lookahead;
-			int cIndex = _input.Length;
-			if (tIndex < _tokens.Count)
-				cIndex = _tokens[tIndex].StartIndex;
-			throw new Exception(string.Format("Error at index {0}: {1}", cIndex, message));
-		}
-		protected override string ToString(int tokenType)
+		// Helper method required by ParserSource
+		string TokenTypeToString(int tokenType)
 		{
 			switch ((TT) tokenType) {
 			case TT.Id:     return "identifier";
@@ -207,12 +177,6 @@ namespace CalcExample
 			}
 		}
 		
-		const TokenType EOF = TT.EOF;
-		TokenType LA0 { get { return LT0.Type; } }
-		TokenType LA(int offset) { return LT(offset).Type; }
-
-		#endregion
-
 		double Do(double left, Token op, double right)
 		{
 			switch (op.Type) {
@@ -230,7 +194,7 @@ namespace CalcExample
 		// modern interpreters that create a syntax tree and interpret that. 
 		// Modern interpreters avoid the cost of parsing the code repeatedly when 
 		// the code contains loops.)
-		LLLPG (parser(laType(TokenType), matchType(int)))
+		LLLPG (parser(laType: TokenType, matchType: int, inputSource: _src, inputClass: ParserSource<Token>))
 		{
 			// A parser cannot directly match characters. You can, however, use
 			// aliases like these to pretend that you're matching characters.
@@ -252,7 +216,7 @@ namespace CalcExample
 				( t:=TT.Id  { result = Vars[(string) t.Value]; }
 				| t:=TT.Num { result = (double) t.Value; }
 				| '(' result=Expr ')'
-				| error     { result = double.NaN; Error(0, "Expected identifer, number, or (parens)"); }
+				| error     { result = double.NaN; _src.Error(0, "Expected identifer, number, or (parens)"); }
 				)
 				greedy // see footnote below
 				[ '^' exp:=Atom { result = Math.Pow(result, exp); } ]*

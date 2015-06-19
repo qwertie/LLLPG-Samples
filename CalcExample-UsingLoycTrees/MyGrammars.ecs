@@ -1,0 +1,237 @@
+﻿/*
+	This version of the calculator parser creates a syntax tree in the form
+	of a universal syntax tree, called a Loyc tree. Read about them here:
+
+	https://github.com/qwertie/LoycCore/wiki/Loyc-trees
+
+	In summary, every Loyc node (LNode) is one of three things:
+	
+	1. A literal (number, string, etc)    with a Value property
+	2. An identifier (variable name)      with a Name property
+	3. A call (operator or function call) with an argument list (Args)
+
+	LNodes also contain a source code location (source file and range of 
+	character indexes) and an optional list of attributes (which are also LNodes).
+	One typically uses LNodeFactory to create the LNodes. After creating the
+	syntax tree, Main() calls Compute(LNode) to run the calculation.
+*/
+#importMacros(Loyc.LLPG); // Only needed if compiling with Custom Tool = LeMP
+using System;
+using System.Text;
+using System.Collections.Generic;
+using System.Linq;
+using System.Diagnostics;
+using Loyc;               // (for IMessageSink, Symbol, etc.)
+using Loyc.Collections;   // (many handy interfaces & classes)
+using Loyc.Syntax.Lexing; // (for BaseLexer)
+using Loyc.Syntax;        // (for BaseParser<Token>, LNode)
+
+namespace MyLanguage
+{
+	using TT = TokenType;  // Abbreviate TokenType as TT
+	using S = CodeSymbols;
+
+	// This is a table of operators that we can use more than once with `unroll`.
+	// Associating your token types with the TokenKind enum is strictly optional
+	// (it improves the default behavior of Token.ToString(), but it is only 
+	// required in languages like LES and EC# that support "token literals".)
+	// Associating a Symbol like S.Add or S.Shr with each operator makes it easy 
+	// to construct the Loyc tree.
+	replace (PUNCTUATION_TOKEN_LIST => (
+		(">>", Shr,      S.Shr,    TokenKind.Operator + 1), // Note: as a general rule, in your lexer you should list 
+		("<<", Shl,      S.Shl,    TokenKind.Operator + 2), // longer operators first. Since will use this token list 
+		("<=", LE,       S.LE,     TokenKind.Operator + 3),
+		(">=", GE,       S.GE,     TokenKind.Operator + 4),
+		("==", Eq,       S.Eq,     TokenKind.Operator + 5),
+		("!=", Neq,      S.Neq,    TokenKind.Operator + 6),
+		(">",  GT,       S.GT,     TokenKind.Operator + 7),
+		("<",  LT,       S.LT,     TokenKind.Operator + 8),
+		("&",  AndBits,  S.AndBits,TokenKind.Operator + 14),
+		("|",  OrBits,   S.OrBits, TokenKind.Operator + 15),
+		("=",  Assign,   S.Assign, TokenKind.Assignment),   // in the lexer, longer operators are listed first here.
+		("^",  Exp,      S.Exp,    TokenKind.Operator + 9),
+		("*",  Mul,      S.Mul,    TokenKind.Operator + 10),
+		("/",  Div,      S.Div,    TokenKind.Operator + 11),
+		("+",  Add,      S.Add,    TokenKind.Operator + 12),
+		("-",  Sub,      S.Sub,    TokenKind.Operator + 13),
+		("(",  LParen,   null,     TokenKind.LParen),
+		(")",  RParen,   null,     TokenKind.RParen),
+		(";",  Semicolon,S.Semicolon,  TokenKind.Separator)));
+
+	// An enum containing the kinds of tokens we'll recognize.
+	public enum TokenType
+	{
+		EOF = 0, // If you use EOF = 0, default(Token) represents EOF
+		Spaces = TokenKind.Spaces + 1,
+		Newline = TokenKind.Spaces + 2,
+		Id  = TokenKind.Id,
+		Num = TokenKind.Number,
+		unroll ((_, TOKEN_NAME, _V, TOKEN_KIND) in PUNCTUATION_TOKEN_LIST)
+		{
+			TOKEN_NAME = TOKEN_KIND;
+		},
+		Unknown
+	}
+
+	public static class TokenExt
+	{
+		// In this parser we'll use the predefined "Token" type in Loyc.Syntax.dll.
+		// This extension method is defined because Token only has TypeInt, an integer.
+		[DebuggerStepThrough]
+		public static TokenType Type(this Token t) { return (TokenType)t.TypeInt; }
+	}
+
+	partial class MyLexer : BaseILexer<ICharSource, Token>
+	{
+		public MyLexer(UString text,     string fileName = "") : this((ICharSource)text, fileName) { }
+		public MyLexer(ICharSource text, string fileName = "") : base(text, fileName) { }
+
+		public new ISourceFile SourceFile { get { return base.SourceFile; } }
+
+		TokenType _type;
+		object _value;
+		int _startIndex;
+
+		LLLPG (lexer);
+
+		public override token Maybe<Token> NextToken()
+		{
+			_startIndex = InputPosition;
+			_value = null;
+			@[ {_type = TT.Num;}       Num
+			 | {_type = TT.Id;}        Id
+			 | {_type = TT.Newline; }  Newline
+			 | {_type = TT.Spaces;  }  (' '|'\t')+
+			 | any punctuation
+			 | error {return NoValue.Value;} 
+			     [_ {_type = TT.Unknown;}]?
+			];
+			return new Token((int)_type, _startIndex, InputPosition - _startIndex, NodeStyle.Default, _value);
+		}
+
+		// Newline is defined in the base class, but we have to tell LLLPG what it means
+		extern token Newline @[ '\r' '\n'? | '\n' ];
+
+		private token Id() @[
+			('a'..'z'|'A'..'Z'|'_')
+			('a'..'z'|'A'..'Z'|'_'|'0'..'9')*
+			{_value = (Symbol)(CharSource.Slice(_startIndex, InputPosition - _startIndex).ToString());}
+		];
+
+		private token Num() @[
+			{bool dot = false;}
+			('.' {dot = true;})?
+			'0'..'9'+
+			(&!{dot} '.' '0'..'9'+)?
+			{_value = double.Parse(CharSource.Slice(_startIndex, InputPosition - _startIndex).ToString());}
+		];
+
+		// Use 'unroll' to generate a rule for each operator token. Note: LLLPG 
+		// and 'unroll' are unaware of each other, so we cannot use 'unroll' 
+		// inside grammar code. So instead of using 'unroll' in NextToken(), I'm 
+		// creating a separate rule for each possible operator token.
+		unroll ((TEXT, TOKEN_NAME, TOKEN_VALUE, _) in PUNCTUATION_TOKEN_LIST)
+		{
+			// 'extern' prevents a method from being generated for the rule.
+			// 'inline' causes this rule to be pasted whereever it is used.
+			// 'punctuation' is not a keyword. It is an extra tag that is 
+			// recognized by the 'any punctuation' command in NextToken().
+			extern inline punctuation rule TOKEN_NAME() { 
+				@[ TEXT ]; _type = TT.TOKEN_NAME; _value = TOKEN_VALUE;
+			}
+		}
+	}
+
+	public partial class MyParser : BaseParserForList<Token, int>
+	{
+		public static MyParser New(UString input) 
+		{
+			var lexer = new MyLexer(input);
+			var tokens = new List<Token>();
+			for (var next = lexer.NextToken(); next.HasValue; next = lexer.NextToken())
+				if (next.Value.Kind != TokenKind.Spaces)
+					tokens.Add(next.Value);
+			return new MyParser(tokens, lexer.SourceFile);
+		}
+		public MyParser(IList<Token> list, ISourceFile file, int startIndex = 0) 
+			: base(list, new Token((int)TT.EOF, 0, 0, null), file, startIndex) 
+		{
+			F = new LNodeFactory(file);
+		}
+
+		// BaseParser.Match() uses this for constructing error messages.
+		protected override string ToString(int tokenType)
+		{
+			return ((TokenType)tokenType).ToString();
+		}
+
+		LNodeFactory F;
+		LNode BinOp(Symbol type, LNode lhs, LNode rhs)
+		{
+			return F.Call(type, lhs, rhs, lhs.Range.StartIndex, rhs.Range.EndIndex);
+		}
+
+		// *********************************************************************
+		// ** Parser rules *****************************************************
+		// *********************************************************************
+		LLLPG (parser(laType(TokenType), matchType(int)));
+
+		// A parser cannot directly match characters. You can, however, use
+		// aliases like «alias(":=" = TT.Assign);» to pretend that you're 
+		// matching strings. In reality, you're still matching the tokens 
+		// produced by the lexer. Here I use 'unroll' to make an alias for 
+		// each operator and punctuation mark.
+		unroll ((TEXT, TOKEN_NAME, _V, _K) in PUNCTUATION_TOKEN_LIST) {
+			alias(TEXT = TT.TOKEN_NAME);
+		}
+
+		public rule LNode Start() @[ result:Expr EOF ];
+
+		// Handle multiple precedence levels with one rule, as explained in Part 5 article
+		public rule LNode Expr(int prec = 0) @[
+			result:PrefixExpr
+			greedy // to suppress ambiguity warning
+			(   // Remember to add [Local] when your predicate uses a local variable
+				&{[Local] prec <= 10}
+				op:="=" r:=Expr(10)
+				{ $result = BinOp((Symbol)op.Value, $result, r); }
+			|   &{[Local] prec < 20}
+				op:=("&"|"|") r:=Expr(20)
+				{ $result = BinOp((Symbol)op.Value, $result, r); }
+			|   &{[Local] prec < 30}
+				op:=(">"|"<"|">="|"<="|"=="|"!=") r:=Expr(30)
+				{ $result = BinOp((Symbol)op.Value, $result, r); }
+			|   &{[Local] prec < 40}
+				op:=("+"|"-") r:=Expr(40)
+				{ $result = BinOp((Symbol)op.Value, $result, r); }
+			|   &{[Local] prec < 50}
+				op:=("*"|"/"|">>"|"<<") r:=Expr(50)
+				{ $result = BinOp((Symbol)op.Value, $result, r); }
+			)*
+		];
+
+		private rule LNode PrefixExpr() @
+			[ minus:="-" Term {return F.Call(S.Sub, $Term, minus.StartIndex, $Term.Range.EndIndex);}
+			| Term            {return $Term;}
+			];
+
+		private rule LNode Term() @[
+			// Supports "mathy" expressions like 3(x-1)(x+1)
+			result:Atom
+			[ rest:=Atom {$result = BinOp(S.Mul, $result, rest);} ]*
+		];
+
+		private rule LNode Atom() @[
+			( t:=TT.Id              {$result = F.Id(t);}
+			| t:=TT.Num             {$result = F.Literal(t);}
+			| "(" result:Expr() ")" {$result = F.InParens($result);}
+			| error             {$result = F._Missing; Error(0, "Expected identifer, number, or (parens)");}
+			)
+			greedy [ 
+				"^" e:=Atom // exponent
+				{$result = BinOp(S.XorBits, $result, e);}
+			]*
+		];
+	}
+}
+

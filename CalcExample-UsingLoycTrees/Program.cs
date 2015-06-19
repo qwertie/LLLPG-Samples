@@ -9,6 +9,7 @@ using Loyc.Collections;
 namespace MyLanguage
 {
 	using S = CodeSymbols;
+	using Loyc.Math;
 
 	class Program
 	{
@@ -19,8 +20,7 @@ namespace MyLanguage
 				"Please type an expression like pi * 2 or «exit» to quit.\n" +
 				"Mathy-looking expressions like 2(x-1)x^2 are also accepted.\n" +
 				"This calculator has only six built-in operators: + - * / ^ =\n" +
-				"The = operator lets you save a result in a variable: x = 10\n" +
-				"\"Exercise for the reader\": try adding additional operators!\n");
+				"The = operator lets you save a result in a variable: x = 10\n");
 
 			Vars[GSymbol.Get("pi")] = Math.PI;
 			Vars[GSymbol.Get("e")] = Math.E;
@@ -30,7 +30,7 @@ namespace MyLanguage
 				while (line.EndsWith(" ")) // user can add additional lines this way
 					line += "\n" + Console.ReadLine();
 				try {
-					var parser = new MyParser(line, "");
+					var parser = MyParser.New(line);
 					LNode tree = parser.Start();
 					Console.WriteLine("Syntax tree:     " + tree.ToString());
 					Console.WriteLine("Computed result: " + Compute(tree));
@@ -41,7 +41,25 @@ namespace MyLanguage
 			}
 		}
 
-		static Dictionary<Symbol, double> Vars = new Dictionary<Symbol,double>();
+		static Dictionary<Symbol, double> Vars = new Dictionary<Symbol, double>();
+		static Dictionary<Symbol, Func<double, double, double>> BinOps = new Dictionary<Symbol, Func<double, double, double>>()
+		{
+			{ S.XorBits, (x, y) => Math.Pow(x, y) },
+			{ S.Mul,     (x, y) => x * y },
+			{ S.Div,     (x, y) => x / y },
+			{ S.Shr,     (x, y) => MathEx.ShiftRight(x, (int)y) },
+			{ S.Shl,     (x, y) => MathEx.ShiftLeft(x, (int)y) },
+			{ S.Add,     (x, y) => x + y },
+			{ S.Sub,     (x, y) => x - y },
+			{ S.Eq,      (x, y) => x == y ? 1.0 : 0.0 },
+			{ S.Neq,     (x, y) => x != y ? 1.0 : 0.0 },
+			{ S.GT,      (x, y) => x > y  ? 1.0 : 0.0 },
+			{ S.LT,      (x, y) => x < y  ? 1.0 : 0.0 },
+			{ S.GE,      (x, y) => x >= y ? 1.0 : 0.0 },
+			{ S.LE,      (x, y) => x <= y ? 1.0 : 0.0 },
+			{ S.AndBits, (x, y) => (int)x & (int)y },
+			{ S.OrBits,  (x, y) => (int)x | (int)y },
+		};
 
 		private static double Compute(LNode tree)
 		{
@@ -55,20 +73,16 @@ namespace MyLanguage
 					MessageSink.Console.Write(Severity.Error, tree, "'{0}' has no value assigned.", tree.Name);
 			} else { // IsCall
 				if (tree.Calls(S.Assign, 2)) {
-					if (tree.Args[0].IsId)
-						Vars[tree.Args[0].Name] = Compute(tree.Args[1]);
-					else
+					if (tree.Args[0].IsId) {
+						return Vars[tree.Args[0].Name] = Compute(tree.Args[1]);
+					} else
 						MessageSink.Console.Write(Severity.Error, tree, "Left hand side of '=' must be an identifier.");
-				} else if (tree.Calls(S.Mul, 2)) {
-					return Compute(tree.Args[0]) * Compute(tree.Args[1]);
-				} else if (tree.Calls(S.Div, 2)) {
-					return Compute(tree.Args[0]) / Compute(tree.Args[1]);
-				} else if (tree.Calls(S.Add, 2)) {
-					return Compute(tree.Args[0]) + Compute(tree.Args[1]);
-				} else if (tree.Calls(S.Sub, 2)) {
-					return Compute(tree.Args[0]) - Compute(tree.Args[1]);
-				} else if (tree.Calls(S.XorBits, 2)) {
-					return Math.Pow(Compute(tree.Args[0]), Compute(tree.Args[1]));
+				} else {
+					var fn = BinOps.TryGetValue(tree.Name, null);
+					if (fn != null && tree.ArgCount == 2)
+						return fn(Compute(tree.Args[0]), Compute(tree.Args[1]));
+					else
+						MessageSink.Console.Write(Severity.Error, tree, "Operator {0} is not implemented.", tree.Name);
 				}
 			}
 			return double.NaN;
