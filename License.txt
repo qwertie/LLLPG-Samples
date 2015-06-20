@@ -7,7 +7,6 @@ Meanwhile, the demo source code (not including the EC# parser developed for Loyc
 - CalcExample-Standalone
 - CalcExample-UsingLoycLibs
 - CalcExample-UsingLoycTrees
-- LoycTreeExample
 
 ...is hereby released into the public domain, or under the CC0 license where the concept of public domain is not recognized:
 

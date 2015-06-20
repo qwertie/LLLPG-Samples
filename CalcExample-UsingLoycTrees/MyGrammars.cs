@@ -237,21 +237,17 @@ namespace MyLanguage
 					#line default
 					Id();
 				} else {
+					// Line 106: ([^\$])?
+					la0 = LA0;
+					if (la0 != -1)
+						Skip();
 					#line 106 "MyGrammars.ecs"
 					return NoValue.Value;
 					#line default
-					// Line 107: ([^\$])?
-					la0 = LA0;
-					if (la0 != -1) {
-						Skip();
-						#line 107 "MyGrammars.ecs"
-						_type = TT.Unknown;
-						#line default
-					}
 				}
 				break;
 			}
-			#line 109 "MyGrammars.ecs"
+			#line 108 "MyGrammars.ecs"
 			return new Token((int) _type, _startIndex, InputPosition - _startIndex, NodeStyle.Default, _value);
 			#line default
 		}
@@ -260,7 +256,7 @@ namespace MyLanguage
 		{
 			int la0;
 			Skip();
-			// Line 117: ([0-9A-Z_a-z])*
+			// Line 116: ([0-9A-Z_a-z])*
 			for (;;) {
 				la0 = LA0;
 				if (Id_set0.Contains(la0))
@@ -268,26 +264,26 @@ namespace MyLanguage
 				else
 					break;
 			}
-			#line 118 "MyGrammars.ecs"
+			#line 117 "MyGrammars.ecs"
 			_value = (Symbol) (CharSource.Slice(_startIndex, InputPosition - _startIndex).ToString());
 			#line default
 		}
 		void Num()
 		{
 			int la0, la1;
-			#line 122 "MyGrammars.ecs"
+			#line 121 "MyGrammars.ecs"
 			bool dot = false;
 			#line default
-			// Line 123: ([.])?
+			// Line 122: ([.])?
 			la0 = LA0;
 			if (la0 == '.') {
 				Skip();
-				#line 123 "MyGrammars.ecs"
+				#line 122 "MyGrammars.ecs"
 				dot = true;
 				#line default
 			}
 			MatchRange('0', '9');
-			// Line 124: ([0-9])*
+			// Line 123: ([0-9])*
 			for (;;) {
 				la0 = LA0;
 				if (la0 >= '0' && la0 <= '9')
@@ -295,7 +291,7 @@ namespace MyLanguage
 				else
 					break;
 			}
-			// Line 125: (&!{dot} [.] [0-9] ([0-9])*)?
+			// Line 124: (&!{dot} [.] [0-9] ([0-9])*)?
 			la0 = LA0;
 			if (la0 == '.') {
 				if (!dot) {
@@ -303,7 +299,7 @@ namespace MyLanguage
 					if (la1 >= '0' && la1 <= '9') {
 						Skip();
 						Skip();
-						// Line 125: ([0-9])*
+						// Line 124: ([0-9])*
 						for (;;) {
 							la0 = LA0;
 							if (la0 >= '0' && la0 <= '9')
@@ -314,7 +310,7 @@ namespace MyLanguage
 					}
 				}
 			}
-			#line 126 "MyGrammars.ecs"
+			#line 125 "MyGrammars.ecs"
 			_value = double.Parse(CharSource.Slice(_startIndex, InputPosition - _startIndex).ToString());
 			#line default
 		}
@@ -354,7 +350,7 @@ namespace MyLanguage
 		{
 			LNode result = default(LNode);
 			result = PrefixExpr();
-			// Line 195: greedy( &{prec <= 10} TT.Assign Expr | &{prec < 20} (TT.AndBits|TT.OrBits) Expr | &{prec < 30} (TT.Eq|TT.GE|TT.GT|TT.LE|TT.LT|TT.Neq) Expr | &{prec < 40} (TT.Add|TT.Sub) Expr | &{prec < 50} (TT.Div|TT.Mul|TT.Shl|TT.Shr) Expr )*
+			// Line 194: greedy( &{prec <= 10} TT.Assign Expr | &{prec < 20} (TT.AndBits|TT.OrBits) Expr | &{prec < 30} (TT.Eq|TT.GE|TT.GT|TT.LE|TT.LT|TT.Neq) Expr | &{prec < 40} (TT.Add|TT.Sub) Expr | &{prec < 50} (TT.Div|TT.Mul|TT.Shl|TT.Shr) Expr )*
 			for (;;) {
 				switch ((TokenType) LA0) {
 				case TT.Assign:
@@ -368,7 +364,7 @@ namespace MyLanguage
 								{
 									var op = MatchAny();
 									var r = Expr(10);
-									#line 197 "MyGrammars.ecs"
+									#line 196 "MyGrammars.ecs"
 									result = BinOp((Symbol) op.Value, result, r);
 									#line default
 								}
@@ -392,7 +388,7 @@ namespace MyLanguage
 								{
 									var op = MatchAny();
 									var r = Expr(20);
-									#line 200 "MyGrammars.ecs"
+									#line 199 "MyGrammars.ecs"
 									result = BinOp((Symbol) op.Value, result, r);
 									#line default
 								}
@@ -420,7 +416,7 @@ namespace MyLanguage
 								{
 									var op = MatchAny();
 									var r = Expr(30);
-									#line 203 "MyGrammars.ecs"
+									#line 202 "MyGrammars.ecs"
 									result = BinOp((Symbol) op.Value, result, r);
 									#line default
 								}
@@ -444,7 +440,7 @@ namespace MyLanguage
 								{
 									var op = MatchAny();
 									var r = Expr(40);
-									#line 206 "MyGrammars.ecs"
+									#line 205 "MyGrammars.ecs"
 									result = BinOp((Symbol) op.Value, result, r);
 									#line default
 								}
@@ -470,7 +466,7 @@ namespace MyLanguage
 								{
 									var op = MatchAny();
 									var r = Expr(50);
-									#line 209 "MyGrammars.ecs"
+									#line 208 "MyGrammars.ecs"
 									result = BinOp((Symbol) op.Value, result, r);
 									#line default
 								}
@@ -493,17 +489,17 @@ namespace MyLanguage
 		{
 			TokenType la0;
 			LNode got_Term = default(LNode);
-			// Line 214: (TT.Sub Term | Term)
+			// Line 213: (TT.Sub Term | Term)
 			la0 = (TokenType) LA0;
 			if (la0 == TT.Sub) {
 				var minus = MatchAny();
 				got_Term = Term();
-				#line 214 "MyGrammars.ecs"
+				#line 213 "MyGrammars.ecs"
 				return F.Call(S.Sub, got_Term, minus.StartIndex, got_Term.Range.EndIndex);
 				#line default
 			} else {
 				got_Term = Term();
-				#line 215 "MyGrammars.ecs"
+				#line 214 "MyGrammars.ecs"
 				return got_Term;
 				#line default
 			}
@@ -513,12 +509,12 @@ namespace MyLanguage
 			TokenType la0;
 			LNode result = default(LNode);
 			result = Atom();
-			// Line 221: (Atom)*
+			// Line 220: (Atom)*
 			for (;;) {
 				la0 = (TokenType) LA0;
 				if (la0 == TT.Id || la0 == TT.LParen || la0 == TT.Num) {
 					var rest = Atom();
-					#line 221 "MyGrammars.ecs"
+					#line 220 "MyGrammars.ecs"
 					result = BinOp(S.Mul, result, rest);
 					#line default
 				} else
@@ -530,33 +526,33 @@ namespace MyLanguage
 		{
 			TokenType la0, la1;
 			LNode result = default(LNode);
-			// Line 225: ( TT.Id | TT.Num | TT.LParen Expr TT.RParen )
+			// Line 224: ( TT.Id | TT.Num | TT.LParen Expr TT.RParen )
 			la0 = (TokenType) LA0;
 			if (la0 == TT.Id) {
 				var t = MatchAny();
-				#line 225 "MyGrammars.ecs"
+				#line 224 "MyGrammars.ecs"
 				result = F.Id(t);
 				#line default
 			} else if (la0 == TT.Num) {
 				var t = MatchAny();
-				#line 226 "MyGrammars.ecs"
+				#line 225 "MyGrammars.ecs"
 				result = F.Literal(t);
 				#line default
 			} else if (la0 == TT.LParen) {
 				Skip();
 				result = Expr();
 				Match((int) TT.RParen);
-				#line 227 "MyGrammars.ecs"
+				#line 226 "MyGrammars.ecs"
 				result = F.InParens(result);
 				#line default
 			} else {
-				#line 228 "MyGrammars.ecs"
+				#line 227 "MyGrammars.ecs"
 				result = F._Missing;
-				#line 228 "MyGrammars.ecs"
+				#line 227 "MyGrammars.ecs"
 				Error(0, "Expected identifer, number, or (parens)");
 				#line default
 			}
-			// Line 231: greedy(TT.Exp Atom)*
+			// Line 230: greedy(TT.Exp Atom)*
 			for (;;) {
 				la0 = (TokenType) LA0;
 				if (la0 == TT.Exp) {
@@ -564,7 +560,7 @@ namespace MyLanguage
 					if (la1 == TT.Id || la1 == TT.LParen || la1 == TT.Num) {
 						Skip();
 						var e = Atom();
-						#line 232 "MyGrammars.ecs"
+						#line 231 "MyGrammars.ecs"
 						result = BinOp(S.XorBits, result, e);
 						#line default
 					} else

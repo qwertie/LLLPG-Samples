@@ -35,13 +35,13 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Loyc.Collections">
-      <HintPath>..\..\Loyc\Core\Bin\Debug.NET4\Loyc.Collections.dll</HintPath>
+      <HintPath>..\LLLPG.NET40\Loyc.Collections.dll</HintPath>
     </Reference>
     <Reference Include="Loyc.Essentials">
-      <HintPath>..\..\Loyc\Core\Bin\Debug.NET4\Loyc.Essentials.dll</HintPath>
+      <HintPath>..\LLLPG.NET40\Loyc.Essentials.dll</HintPath>
     </Reference>
     <Reference Include="Loyc.Syntax">
-      <HintPath>..\..\Loyc\Core\Bin\Debug.NET4\Loyc.Syntax.dll</HintPath>
+      <HintPath>..\LLLPG.NET40\Loyc.Syntax.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />

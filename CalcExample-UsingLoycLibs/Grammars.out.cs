@@ -347,13 +347,16 @@ namespace CalcExample
 			get;
 			set;
 		}
+		const TokenType EOF = TT.EOF;
 		public double Calculate(string input)
 		{
 			Token EOF = new Token { 
 				Type = TT.EOF
 			};
 			var lexer = new CalculatorLexer(input);
-			Src = new ParserSource<Token>(lexer, EOF, lexer.Src.SourceFile);
+			Src = new ParserSource<Token>(lexer, EOF, lexer.Src.SourceFile) { 
+				TokenTypeToString = tt => ((TT) tt).ToString()
+			};
 			return ExprSequence();
 		}
 		static double Do(double left, Token op, double right)
@@ -377,16 +380,16 @@ namespace CalcExample
 			TokenType la0, la1;
 			double got_Atom = default(double);
 			double result = default(double);
-			// Line 256: ( TT.Id | TT.Num | TT.LParen ExprSequence TT.RParen )
+			// Line 259: ( TT.Id | TT.Num | TT.LParen ExprSequence TT.RParen )
 			la0 = (TokenType) Src.LA0;
 			if (la0 == TT.Id) {
 				var t = Src.MatchAny();
-				#line 256 "Grammars.ecs"
+				#line 259 "Grammars.ecs"
 				result = Vars[(string) t.Value];
 				#line default
 			} else if (la0 == TT.Num) {
 				var t = Src.MatchAny();
-				#line 257 "Grammars.ecs"
+				#line 260 "Grammars.ecs"
 				result = (double) t.Value;
 				#line default
 			} else if (la0 == TT.LParen) {
@@ -394,13 +397,13 @@ namespace CalcExample
 				result = ExprSequence();
 				Src.Match((int) TT.RParen);
 			} else {
-				#line 259 "Grammars.ecs"
+				#line 262 "Grammars.ecs"
 				result = double.NaN;
-				#line 259 "Grammars.ecs"
+				#line 262 "Grammars.ecs"
 				Src.Error(0, "Expected identifer, number, or (parens)");
 				#line default
 			}
-			// Line 262: greedy(TT.Exp Atom)*
+			// Line 265: greedy(TT.Exp Atom)*
 			for (;;) {
 				la0 = (TokenType) Src.LA0;
 				if (la0 == TT.Exp) {
@@ -408,7 +411,7 @@ namespace CalcExample
 					if (la1 == TT.Id || la1 == TT.LParen || la1 == TT.Num) {
 						Src.Skip();
 						got_Atom = Atom();
-						#line 262 "Grammars.ecs"
+						#line 265 "Grammars.ecs"
 						result = Math.Pow(result, got_Atom);
 						#line default
 					} else
@@ -422,35 +425,35 @@ namespace CalcExample
 		{
 			TokenType la0;
 			var result = Atom();
-			// Line 267: (Atom)*
+			// Line 270: (Atom)*
 			for (;;) {
 				la0 = (TokenType) Src.LA0;
 				if (la0 == TT.Id || la0 == TT.LParen || la0 == TT.Num) {
 					var rest = Atom();
-					#line 267 "Grammars.ecs"
+					#line 270 "Grammars.ecs"
 					result *= rest;
 					#line default
 				} else
 					break;
 			}
-			#line 268 "Grammars.ecs"
+			#line 271 "Grammars.ecs"
 			return result;
 			#line default
 		}
 		double PrefixExpr()
 		{
 			TokenType la0;
-			// Line 271: (TT.Sub Term | Term)
+			// Line 274: (TT.Sub Term | Term)
 			la0 = (TokenType) Src.LA0;
 			if (la0 == TT.Sub) {
 				Src.Skip();
 				var r = Term();
-				#line 271 "Grammars.ecs"
+				#line 274 "Grammars.ecs"
 				return -r;
 				#line default
 			} else {
 				var r = Term();
-				#line 272 "Grammars.ecs"
+				#line 275 "Grammars.ecs"
 				return r;
 				#line default
 			}
@@ -459,19 +462,19 @@ namespace CalcExample
 		{
 			TokenType la0;
 			var result = PrefixExpr();
-			// Line 276: ((TT.Div|TT.Mul) PrefixExpr)*
+			// Line 279: ((TT.Div|TT.Mul) PrefixExpr)*
 			for (;;) {
 				la0 = (TokenType) Src.LA0;
 				if (la0 == TT.Div || la0 == TT.Mul) {
 					var op = Src.MatchAny();
 					var rhs = PrefixExpr();
-					#line 276 "Grammars.ecs"
+					#line 279 "Grammars.ecs"
 					result = Do(result, op, rhs);
 					#line default
 				} else
 					break;
 			}
-			#line 277 "Grammars.ecs"
+			#line 280 "Grammars.ecs"
 			return result;
 			#line default
 		}
@@ -479,19 +482,19 @@ namespace CalcExample
 		{
 			TokenType la0;
 			var result = MulExpr();
-			// Line 281: ((TT.Add|TT.Sub) MulExpr)*
+			// Line 284: ((TT.Add|TT.Sub) MulExpr)*
 			for (;;) {
 				la0 = (TokenType) Src.LA0;
 				if (la0 == TT.Add || la0 == TT.Sub) {
 					var op = Src.MatchAny();
 					var rhs = MulExpr();
-					#line 281 "Grammars.ecs"
+					#line 284 "Grammars.ecs"
 					result = Do(result, op, rhs);
 					#line default
 				} else
 					break;
 			}
-			#line 282 "Grammars.ecs"
+			#line 285 "Grammars.ecs"
 			return result;
 			#line default
 		}
@@ -499,7 +502,7 @@ namespace CalcExample
 		{
 			TokenType la0, la1;
 			double result = default(double);
-			// Line 286: (TT.Id TT.Assign AssignExpr | AddExpr)
+			// Line 289: (TT.Id TT.Assign AssignExpr | AddExpr)
 			la0 = (TokenType) Src.LA0;
 			if (la0 == TT.Id) {
 				la1 = (TokenType) Src.LA(1);
@@ -507,7 +510,7 @@ namespace CalcExample
 					var t = Src.MatchAny();
 					Src.Skip();
 					result = AssignExpr();
-					#line 286 "Grammars.ecs"
+					#line 289 "Grammars.ecs"
 					Vars[t.Value.ToString()] = result;
 					#line default
 				} else
@@ -521,7 +524,7 @@ namespace CalcExample
 			TokenType la0;
 			double result = default(double);
 			result = AssignExpr();
-			// Line 290: (TT.Semicolon AssignExpr)*
+			// Line 293: (TT.Semicolon AssignExpr)*
 			for (;;) {
 				la0 = (TokenType) Src.LA0;
 				if (la0 == TT.Semicolon) {
@@ -530,6 +533,7 @@ namespace CalcExample
 				} else
 					break;
 			}
+			Src.Match((int) EOF);
 			return result;
 		}
 	}

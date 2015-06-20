@@ -212,13 +212,16 @@ namespace CalcExample {
 
 		public Dictionary<string,double> Vars = new Dictionary<string,double>();
 		public ParserSource<Token> Src { get; set; } // LLLPG API
+		const TokenType EOF = TT.EOF;
 
 		public double Calculate(string input)
 		{
 			Token EOF = new Token { Type = TT.EOF };
 			var lexer = new CalculatorLexer(input);
 			// ParserSource accepts any IEnumerator<Token> for its first parameter
-			Src = new ParserSource<Token>(lexer, EOF, lexer.Src.SourceFile);
+			Src = new ParserSource<Token>(lexer, EOF, lexer.Src.SourceFile) { 
+				TokenTypeToString = tt => ((TT)tt).ToString()
+			};
 			
 			return ExprSequence();
 		}
@@ -287,7 +290,7 @@ namespace CalcExample {
 			| result:AddExpr )
 		];
 		rule double ExprSequence() @[
-			result:AssignExpr (";" result:AssignExpr)*
+			result:AssignExpr (";" result:AssignExpr)* EOF
 		];
 
 		// Footnote about "greedy": As I was about to publish LLLPG 1.0, I added

@@ -103,8 +103,7 @@ namespace MyLanguage
 			 | {_type = TT.Newline; }  Newline
 			 | {_type = TT.Spaces;  }  (' '|'\t')+
 			 | any punctuation
-			 | error {return NoValue.Value;} 
-			     [_ {_type = TT.Unknown;}]?
+			 | error _? {return NoValue.Value;} 
 			];
 			return new Token((int)_type, _startIndex, InputPosition - _startIndex, NodeStyle.Default, _value);
 		}

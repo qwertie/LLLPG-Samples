@@ -5,7 +5,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CalcExample.NET40", "CalcEx
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CalcExample-Standalone.NET40", "CalcExample-Standalone\CalcExample-Standalone.NET40.csproj", "{03B6304E-FF66-4468-A7E0-92AA6E543E99}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoycTreeExample.NET40", "CalcExample-UsingLoycTrees\LoycTreeExample.NET40.csproj", "{DC8C2059-EC43-4A79-96CA-A90F86545BE8}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CalcExample-LoycTrees.NET40", "CalcExample-UsingLoycTrees\CalcExample-LoycTrees.NET40.csproj", "{DC8C2059-EC43-4A79-96CA-A90F86545BE8}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TryEcsParser.NET40", "EnhancedC#Parser\TryEcsParser.NET40.csproj", "{245A0392-2D46-42DE-A2E6-42A5454DE2F2}"
 EndProject
