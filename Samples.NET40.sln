@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CalcExample-LoycTrees.NET40
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TryEcsParser.NET40", "EnhancedC#Parser\TryEcsParser.NET40.csproj", "{245A0392-2D46-42DE-A2E6-42A5454DE2F2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JsonExample", "JsonExample\JsonExample.csproj", "{93A24B8C-C195-45B7-BF6B-7F01622D83F7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Boilerplate", "Boilerplate\Boilerplate.csproj", "{AA20B0B4-0773-49C5-AD11-D3C156E4B865}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
@@ -31,6 +35,14 @@ Global
 		{245A0392-2D46-42DE-A2E6-42A5454DE2F2}.Debug|x86.Build.0 = Debug|x86
 		{245A0392-2D46-42DE-A2E6-42A5454DE2F2}.Release|x86.ActiveCfg = Release|x86
 		{245A0392-2D46-42DE-A2E6-42A5454DE2F2}.Release|x86.Build.0 = Release|x86
+		{93A24B8C-C195-45B7-BF6B-7F01622D83F7}.Debug|x86.ActiveCfg = Debug|x86
+		{93A24B8C-C195-45B7-BF6B-7F01622D83F7}.Debug|x86.Build.0 = Debug|x86
+		{93A24B8C-C195-45B7-BF6B-7F01622D83F7}.Release|x86.ActiveCfg = Release|x86
+		{93A24B8C-C195-45B7-BF6B-7F01622D83F7}.Release|x86.Build.0 = Release|x86
+		{AA20B0B4-0773-49C5-AD11-D3C156E4B865}.Debug|x86.ActiveCfg = Debug|x86
+		{AA20B0B4-0773-49C5-AD11-D3C156E4B865}.Debug|x86.Build.0 = Debug|x86
+		{AA20B0B4-0773-49C5-AD11-D3C156E4B865}.Release|x86.ActiveCfg = Release|x86
+		{AA20B0B4-0773-49C5-AD11-D3C156E4B865}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

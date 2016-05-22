@@ -1,0 +1,58 @@
+﻿using System(, .Text, .Linq, .Collections.Generic, .Diagnostics);
+using Loyc;               // optional (for IMessageSink, Symbol, etc.)
+using Loyc.Collections;   // optional (many handy interfaces & classes)
+using Loyc.Syntax.Lexing; // For BaseLexer
+using Loyc.Syntax;        // For BaseParser<Token> and LNode
+
+namespace MyLanguage; // In EC#, braces around the rest of the file are optional
+
+using TT = TokenType; // Abbreviate TokenType as TT
+
+public enum TokenType
+{
+    EOF = 0, // End-of-file. Conventional to use 0 so that default(Token) is EOF
+    Newline = 1,
+    Number = 2,
+    /* TODO: add more token names here */
+}
+
+partial class Lexer
+{
+    LLLPG (lexer); // Lexer starts here
+
+    public override rule Maybe<Token> NextToken() @{
+        (' '|'\t')* // ignore spaces
+        {_startIndex = InputPosition;}
+        // this is equivalent to (t:Newline / t:Number / ...) { return t; }:
+        ( any token in t:token { return t; } // `any token` requires v1.8.0
+        / EOF { return Maybe<Token>.NoValue; }
+        )
+    }
+
+    private new token Token Newline @{
+        ('\r' '\n'? | '\n') {
+            AfterNewline(); // increment the current LineNumber
+            return T(TT.Newline, WhitespaceTag.Value);
+        }
+    };
+    private token Token Number() @{
+        '0'..'9'+ ('.' '0'..'9'+)? { 
+            var text = Text();
+            return T(TT.Number, ParseHelpers.TryParseDouble(ref text, radix: 10));
+        }
+    };
+    
+    // TODO: define more tokens here
+}
+
+partial class Parser
+{
+    LLLPG (parser(matchType: int, laType: TokenType, terminalType: Token)); // Parser starts here
+
+    rule List<double> Numbers @{
+        {$result = new List<double>();}
+        (n:TT.Number {$result.Add((double)n.Value);})*
+    };
+
+    // TODO: delete the above rule and define your own instead!
+}
