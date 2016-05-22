@@ -10,7 +10,7 @@ using Loyc.Collections;
 using Loyc.Collections.Impl;
 using System.Collections;
 
-namespace Ecs.Parser
+namespace Loyc.Ecs.Parser
 {
 	using S = CodeSymbols;
 
@@ -68,7 +68,7 @@ namespace Ecs.Parser
 		private void ReadRest()
 		{
 			_rest.Clear();
-			for (;;) {
+			for (; ; ) {
 				Maybe<Token> t = Lexer.NextToken();
 				if (!t.HasValue || t.Value.Type() == TokenType.Newline)
 					break;
@@ -77,7 +77,7 @@ namespace Ecs.Parser
 			}
 		}
 
-		Stack<Pair<Token,bool>> _ifRegions = new Stack<Pair<Token,bool>>();
+		Stack<Pair<Token, bool>> _ifRegions = new Stack<Pair<Token, bool>>();
 		Stack<Token> _regions = new Stack<Token>();
 
 		public override Maybe<Token> NextToken()
@@ -87,100 +87,100 @@ namespace Ecs.Parser
 			redo:
 				if (!t_.HasValue)
 					break;
-			    var t = t_.Value;
-			    if (t.IsWhitespace) {
+				var t = t_.Value;
+				if (t.IsWhitespace) {
 					if (t.Kind == TokenKind.Comment)
 						AddComment(t);
 					continue;
 				} else if (t.Kind == TokenKind.Other) {
 					switch (t.Type()) {
-					case TokenType.PPdefine:
-					case TokenType.PPundef:
-						ReadRest();
-						bool undef = t.Type() == TokenType.PPundef;
-						if (_rest.Count == 1 && _rest[0].Type() == TokenType.Id) {
-							if (undef)
-								DefinedSymbols.Remove((Symbol)_rest[0].Value);
+						case TokenType.PPdefine:
+						case TokenType.PPundef:
+							ReadRest();
+							bool undef = t.Type() == TokenType.PPundef;
+							if (_rest.Count == 1 && _rest[0].Type() == TokenType.Id) {
+								if (undef)
+									DefinedSymbols.Remove((Symbol)_rest[0].Value);
+								else
+									DefinedSymbols.Add((Symbol)_rest[0].Value);
+							} else
+								ErrorSink.Write(Severity.Error, t.ToSourceRange(SourceFile), "'{0}' should be followed by a single, simple identifier", undef ? "#undef" : "#define");
+							continue;
+						case TokenType.PPif:
+							var tree = ReadRestAsTokenTree();
+							LNode expr = ParseExpr(tree);
+
+							var cond = Evaluate(expr) ?? false;
+							_ifRegions.Push(Pair.Create(t, cond));
+							t_ = SaveDirectiveAndAutoSkip(t, cond);
+							goto redo;
+						case TokenType.PPelse:
+						case TokenType.PPelif:
+							var tree_ = ReadRestAsTokenTree();
+
+							if (_ifRegions.Count == 0) {
+								ErrorSink.Write(Severity.Error, t.ToSourceRange(SourceFile),
+									"Missing #if clause before '{0}'", t);
+								_ifRegions.Push(Pair.Create(t, false));
+							}
+							bool isElif = t.Type() == TokenType.PPelif, hasExpr = tree_.HasIndex(0);
+							if (hasExpr != isElif)
+								Error(t, isElif ? "Missing condition on #elif" : "Unexpected tokens after #else");
+							bool cond_ = true;
+							if (hasExpr) {
+								LNode expr_ = ParseExpr(tree_);
+								cond_ = Evaluate(expr_) ?? false;
+							}
+							if (_ifRegions.Peek().B)
+								cond_ = false;
+							t_ = SaveDirectiveAndAutoSkip(t, cond_);
+							if (cond_)
+								_ifRegions.Push(Pair.Create(_ifRegions.Pop().A, cond_));
+							goto redo;
+						case TokenType.PPendif:
+							var tree__ = ReadRestAsTokenTree();
+							if (_ifRegions.Count == 0)
+								Error(t, "Missing #if before #endif");
+							else {
+								_ifRegions.Pop();
+								if (tree__.Count > 0)
+									Error(t, "Unexpected tokens after #endif");
+							}
+							_commentList.Add(t);
+							continue;
+						case TokenType.PPerror:
+							_commentList.Add(t);
+							Error(t, t.Value.ToString());
+							continue;
+						case TokenType.PPwarning:
+							_commentList.Add(t);
+							ErrorSink.Write(Severity.Warning, t.ToSourceRange(SourceFile), t.Value.ToString());
+							continue;
+						case TokenType.PPregion:
+							_commentList.Add(t);
+							_regions.Push(t);
+							continue;
+						case TokenType.PPendregion:
+							_commentList.Add(t);
+							if (_regions.Count == 0)
+								ErrorSink.Write(Severity.Warning, t.ToSourceRange(SourceFile), "#endregion without matching #region");
 							else
-								DefinedSymbols.Add((Symbol)_rest[0].Value);
-						} else
-							ErrorSink.Write(Severity.Error, t.ToSourceRange(SourceFile), "'{0}' should be followed by a single, simple identifier", undef ? "#undef" : "#define");
-						continue;
-					case TokenType.PPif:
-						var tree = ReadRestAsTokenTree();
-						LNode expr = ParseExpr(tree);
-
-						var cond = Evaluate(expr) ?? false;
-						_ifRegions.Push(Pair.Create(t, cond));
-						t_ = SaveDirectiveAndAutoSkip(t, cond);
-						goto redo;
-					case TokenType.PPelse:
-					case TokenType.PPelif:
-						var tree_ = ReadRestAsTokenTree();
-
-						if (_ifRegions.Count == 0) {
-							ErrorSink.Write(Severity.Error, t.ToSourceRange(SourceFile), 
-								"Missing #if clause before '{0}'", t);
-							_ifRegions.Push(Pair.Create(t, false));
-						}
-						bool isElif = t.Type() == TokenType.PPelif, hasExpr = tree_.HasIndex(0);
-						if (hasExpr != isElif)
-							Error(t, isElif ? "Missing condition on #elif" : "Unexpected tokens after #else");
-						bool cond_ = true;
-						if (hasExpr) {
-							LNode expr_ = ParseExpr(tree_);
-							cond_ = Evaluate(expr_) ?? false;
-						}
-						if (_ifRegions.Peek().B)
-							cond_ = false;
-						t_ = SaveDirectiveAndAutoSkip(t, cond_);
-						if (cond_)
-							_ifRegions.Push(Pair.Create(_ifRegions.Pop().A, cond_));
-						goto redo;
-					case TokenType.PPendif:
-						var tree__ = ReadRestAsTokenTree();
-						if (_ifRegions.Count == 0)
-							Error(t, "Missing #if before #endif");
-						else {
-							_ifRegions.Pop();
-							if (tree__.Count > 0)
-								Error(t, "Unexpected tokens after #endif");
-						}
-						_commentList.Add(t);
-						continue;
-					case TokenType.PPerror:
-						_commentList.Add(t);
-						Error(t, t.Value.ToString());
-						continue;
-					case TokenType.PPwarning:
-						_commentList.Add(t);
-						ErrorSink.Write(Severity.Warning, t.ToSourceRange(SourceFile), t.Value.ToString());
-						continue;
-					case TokenType.PPregion:
-						_commentList.Add(t);
-						_regions.Push(t);
-						continue;
-					case TokenType.PPendregion:
-						_commentList.Add(t);
-						if (_regions.Count == 0)
-							ErrorSink.Write(Severity.Warning, t.ToSourceRange(SourceFile), "#endregion without matching #region");
-						else
-							_regions.Pop();
-						continue;
-					case TokenType.PPline:
-						_commentList.Add(new Token(t.TypeInt, t.StartIndex, Lexer.InputPosition));
-						var rest = ReadRestAsTokenTree();
-						// TODO
-						ErrorSink.Write(Severity.Note, t.ToSourceRange(SourceFile), "Support for #line is not implemented");
-						continue;
-					case TokenType.PPpragma:
-						_commentList.Add(new Token(t.TypeInt, t.StartIndex, Lexer.InputPosition));
-						var rest_ = ReadRestAsTokenTree();
-						// TODO
-						ErrorSink.Write(Severity.Note, t.ToSourceRange(SourceFile), "Support for #pragma is not implemented");
-						continue;
+								_regions.Pop();
+							continue;
+						case TokenType.PPline:
+							_commentList.Add(new Token(t.TypeInt, t.StartIndex, Lexer.InputPosition));
+							var rest = ReadRestAsTokenTree();
+							// TODO
+							ErrorSink.Write(Severity.Note, t.ToSourceRange(SourceFile), "Support for #line is not implemented");
+							continue;
+						case TokenType.PPpragma:
+							_commentList.Add(new Token(t.TypeInt, t.StartIndex, Lexer.InputPosition));
+							var rest_ = ReadRestAsTokenTree();
+							// TODO
+							ErrorSink.Write(Severity.Note, t.ToSourceRange(SourceFile), "Support for #pragma is not implemented");
+							continue;
 					}
-			    }
+				}
 				return t_;
 			} while (true);
 			// end of stream
@@ -283,11 +283,11 @@ namespace Ecs.Parser
 
 		IList<Token> _commentList;
 		public IList<Token> CommentList { get { return _commentList; } }
-	
+
 		public sealed override Maybe<Token> NextToken()
 		{
 			Maybe<Token> t = Lexer.NextToken();
-			for (;;) {
+			for (; ; ) {
 				t = Lexer.NextToken();
 				if (!t.HasValue)
 					break;

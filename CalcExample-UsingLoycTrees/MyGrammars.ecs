@@ -65,7 +65,7 @@ namespace MyLanguage
 		Spaces = TokenKind.Spaces + 1,
 		Newline = TokenKind.Spaces + 2,
 		Id  = TokenKind.Id,
-		Num = TokenKind.Number,
+		Num = TokenKind.Literal,
 		unroll ((_, TOKEN_NAME, _V, TOKEN_KIND) in PUNCTUATION_TOKEN_LIST)
 		{
 			TOKEN_NAME = TOKEN_KIND;
@@ -224,7 +224,7 @@ namespace MyLanguage
 			( t:=TT.Id              {$result = F.Id(t);}
 			| t:=TT.Num             {$result = F.Literal(t);}
 			| "(" result:Expr() ")" {$result = F.InParens($result);}
-			| error             {$result = F._Missing; Error(0, "Expected identifer, number, or (parens)");}
+			| error             {$result = F.Missing; Error(0, "Expected identifer, number, or (parens)");}
 			)
 			greedy [ 
 				"^" e:=Atom // exponent

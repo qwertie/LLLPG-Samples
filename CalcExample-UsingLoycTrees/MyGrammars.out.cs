@@ -1,7 +1,8 @@
-// Generated from MyGrammars.ecs by LeMP custom tool. LLLPG version: 1.3.2.0
+// Generated from MyGrammars.ecs by LeMP custom tool. LeMP version: 1.8.0.0
 // Note: you can give command-line arguments to the tool via 'Custom Tool Namespace':
 // --no-out-header       Suppress this message
 // --verbose             Allow verbose messages (shown by VS as 'warnings')
+// --timeout=X           Abort processing thread after X seconds (default: 10)
 // --macros=FileName.dll Load macros from FileName.dll, path relative to this file 
 // Use #importMacros to use macros in a given namespace, e.g. #importMacros(Loyc.LLPG);
 using System;
@@ -19,11 +20,12 @@ namespace MyLanguage
 	using S = CodeSymbols;
 	public enum TokenType
 	{
-		EOF = 0, Spaces = TokenKind.Spaces + 1, Newline = TokenKind.Spaces + 2, Id = TokenKind.Id, Num = TokenKind.Number, Shr = TokenKind.Operator + 1, Shl = TokenKind.Operator + 2, LE = TokenKind.Operator + 3, GE = TokenKind.Operator + 4, Eq = TokenKind.Operator + 5, Neq = TokenKind.Operator + 6, GT = TokenKind.Operator + 7, LT = TokenKind.Operator + 8, AndBits = TokenKind.Operator + 14, OrBits = TokenKind.Operator + 15, Assign = TokenKind.Assignment, Exp = TokenKind.Operator + 9, Mul = TokenKind.Operator + 10, Div = TokenKind.Operator + 11, Add = TokenKind.Operator + 12, Sub = TokenKind.Operator + 13, LParen = TokenKind.LParen, RParen = TokenKind.RParen, Semicolon = TokenKind.Separator, Unknown
+		EOF = 0, Spaces = TokenKind.Spaces + 1, Newline = TokenKind.Spaces + 2, Id = TokenKind.Id, Num = TokenKind.Literal, Shr = TokenKind.Operator + 1, Shl = TokenKind.Operator + 2, LE = TokenKind.Operator + 3, GE = TokenKind.Operator + 4, Eq = TokenKind.Operator + 5, Neq = TokenKind.Operator + 6, GT = TokenKind.Operator + 7, LT = TokenKind.Operator + 8, AndBits = TokenKind.Operator + 14, OrBits = TokenKind.Operator + 15, Assign = TokenKind.Assignment, Exp = TokenKind.Operator + 9, Mul = TokenKind.Operator + 10, Div = TokenKind.Operator + 11, Add = TokenKind.Operator + 12, Sub = TokenKind.Operator + 13, LParen = TokenKind.LParen, RParen = TokenKind.RParen, Semicolon = TokenKind.Separator, Unknown
 	}
 	public static class TokenExt
 	{
-		[DebuggerStepThrough] public static TokenType Type(this Token t)
+		[DebuggerStepThrough]
+		public static TokenType Type(this Token t)
 		{
 			return (TokenType) t.TypeInt;
 		}
@@ -547,7 +549,7 @@ namespace MyLanguage
 				#line default
 			} else {
 				#line 227 "MyGrammars.ecs"
-				result = F._Missing;
+				result = F.Missing;
 				#line 227 "MyGrammars.ecs"
 				Error(0, "Expected identifer, number, or (parens)");
 				#line default

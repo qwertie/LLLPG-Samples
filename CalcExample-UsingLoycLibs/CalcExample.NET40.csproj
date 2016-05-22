@@ -34,14 +34,17 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Loyc.Collections">
-      <HintPath>..\LLLPG.NET40\Loyc.Collections.dll</HintPath>
+    <Reference Include="Loyc.Collections, Version=1.7.6.0, Culture=neutral, PublicKeyToken=b1460dff8a28f7a7, processorArchitecture=MSIL">
+      <HintPath>..\packages\LoycCore.1.8.0\lib\net40-client\Loyc.Collections.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    <Reference Include="Loyc.Essentials">
-      <HintPath>..\LLLPG.NET40\Loyc.Essentials.dll</HintPath>
+    <Reference Include="Loyc.Essentials, Version=1.7.6.0, Culture=neutral, PublicKeyToken=b1460dff8a28f7a7, processorArchitecture=MSIL">
+      <HintPath>..\packages\LoycCore.1.8.0\lib\net40-client\Loyc.Essentials.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    <Reference Include="Loyc.Syntax">
-      <HintPath>..\LLLPG.NET40\Loyc.Syntax.dll</HintPath>
+    <Reference Include="Loyc.Syntax, Version=1.7.6.0, Culture=neutral, PublicKeyToken=b1460dff8a28f7a7, processorArchitecture=MSIL">
+      <HintPath>..\packages\LoycCore.1.8.0\lib\net40-client\Loyc.Syntax.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -65,6 +68,7 @@
       <Generator>LLLPG</Generator>
       <LastGenOutput>Grammars.out.cs</LastGenOutput>
     </None>
+    <None Include="packages.config" />
     <None Include="Test.ecs">
       <Generator>LeMP</Generator>
       <LastGenOutput>Test.out.cs</LastGenOutput>

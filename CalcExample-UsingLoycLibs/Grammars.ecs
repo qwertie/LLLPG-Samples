@@ -4,7 +4,8 @@
 	or have 10 parsers in one file, whatever. But this version of the calculator
 	uses some more advanced techniques involving `replace` and `unroll` to share
 	a table of information called OPERATOR_TOKEN_LIST between the lexer and parser.
-	You can only do this if the lexer and parser are defined in the same file.
+	(If the lexer and parser are in different files, it's possible to store this 
+	list in a third file and use `includeFile` macro to include it in both).
 
 	This example doesn't create a syntax tree, it just computes the result directly.
 
@@ -86,7 +87,7 @@ namespace CalcExample {
 	// Usually you'll need an enum containing the kinds of tokens you'll recognize.
 	public enum TokenType
 	{
-		EOF = 0, // If you use EOF = 0, default(Token) represents EOF
+		EOF = 0, // If you use EOF = 0, default(Token) represents End-Of-File (or end-of-input)
 		Id,
 		Num,
 		unroll ((_, TOKEN_NAME) in OPERATOR_TOKEN_LIST)
@@ -116,7 +117,7 @@ namespace CalcExample {
 
 	partial class CalculatorLexer : IEnumerator<Token>
 	{
-		LLLPG (lexer(inputSource = Src, inputClass = LexerSource));
+		LLLPG (lexer(inputSource: Src, inputClass: LexerSource));
 		
 		// The Src object provides the API used by LLLPG. It holds three things: 
 		// 1. The input data (Src.CharSource, a wrapper around the original
@@ -212,18 +213,20 @@ namespace CalcExample {
 
 		public Dictionary<string,double> Vars = new Dictionary<string,double>();
 		public ParserSource<Token> Src { get; set; } // LLLPG API
-		const TokenType EOF = TT.EOF;
 
 		public double Calculate(string input)
 		{
-			Token EOF = new Token { Type = TT.EOF };
+			Token EofToken = new Token { Type = TT.EOF };
 			var lexer = new CalculatorLexer(input);
 			// ParserSource accepts any IEnumerator<Token> for its first parameter
-			Src = new ParserSource<Token>(lexer, EOF, lexer.Src.SourceFile) { 
+			Src = new ParserSource<Token>(lexer, EofToken, lexer.Src.SourceFile) { 
 				TokenTypeToString = tt => ((TT)tt).ToString()
 			};
 			
-			return ExprSequence();
+			var result = ExprSequence();
+			// emit an error if we reach end of expression before end-of-input
+			Src.Match((int) TT.EOF);
+			return result;
 		}
 
 		static double Do(double left, Token op, double right)
@@ -244,13 +247,14 @@ namespace CalcExample {
 		// modern interpreters that create a syntax tree and interpret that. 
 		// (A modern interpreter avoids the cost of parsing the code repeatedly 
 		// when the code contains loops.)
-		LLLPG (parser(laType = TokenType, matchType = int, 
-		              inputSource = Src, inputClass = ParserSource<Token>));
+		LLLPG (parser(laType: TokenType, matchType: int, 
+		              inputSource: Src, inputClass: ParserSource<Token>));
 
 		// A parser cannot directly match characters. You can, however, use
-		// aliases like «alias(":=" = TT.Assign);» to pretend that you're 
+		// aliases like «alias("+" = TT.Add);» to pretend that you're 
 		// matching strings. In reality, you're still matching the tokens 
-		// produced by the lexer. Here I use 'unroll' to make some aliases.
+		// produced by the lexer. Here I use 'unroll' to make aliases out of
+		// our OPERATOR_TOKEN_LIST.
 		unroll ((TEXT, TOKEN_NAME) in OPERATOR_TOKEN_LIST) {
 			alias(TEXT = TT.TOKEN_NAME);
 		}
@@ -258,7 +262,7 @@ namespace CalcExample {
 		private rule double Atom() @[
 			( t:=TT.Id  { $result = Vars[(string) t.Value]; }
 			| t:=TT.Num { $result = (double) t.Value; }
-			| "(" result=ExprSequence ")"
+			| "(" result:ExprSequence ")"
 			| error     { $result = double.NaN; Src.Error(0, "Expected identifer, number, or (parens)"); }
 			)
 			greedy // see footnote below
@@ -285,12 +289,12 @@ namespace CalcExample {
 			{ return result; }
 		];
 		rule double AssignExpr() @[
-			// LLLPG recognizes $result as defining the method's return value
+			// $result (in code) and result: (in grammar) sets the method's return value
 			( t:=TT.Id "=" result:AssignExpr { Vars[t.Value.ToString()] = $result; }
 			| result:AddExpr )
 		];
 		rule double ExprSequence() @[
-			result:AssignExpr (";" result:AssignExpr)* EOF
+			result:AssignExpr (";" result:AssignExpr)*
 		];
 
 		// Footnote about "greedy": As I was about to publish LLLPG 1.0, I added

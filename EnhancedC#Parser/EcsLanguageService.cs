@@ -7,8 +7,9 @@ using Loyc.Syntax;
 using Loyc.Utilities;
 using Loyc.Collections;
 using Loyc.Syntax.Lexing;
+using Loyc.Ecs.Parser;
 
-namespace Ecs.Parser
+namespace Loyc.Ecs
 {
 	/// <summary>The <see cref="Value"/> property provides easy access to the lexer, 
 	/// parser and printer for Enhanced C#.</summary>
@@ -19,14 +20,17 @@ namespace Ecs.Parser
 	{
 		static readonly string[] _fileExtensionsNormal = new[] { "ecs", "cs" };
 		static readonly string[] _fileExtensionsPlainCs = new[] { "cs", "ecs" };
-		
+
 		public static readonly EcsLanguageService Value = new EcsLanguageService();
 
 		readonly string[] _fileExtensions = _fileExtensionsNormal;
-		//readonly LNodePrinter _printer = EcsNodePrinter.Printer;
-		readonly string _name = "Enhanced C# (alpha)";
+		// We have no printer in this project; use LES as a fallback
+		readonly LNodePrinter _printer = Loyc.Syntax.Les.LesNodePrinter.Printer;
+		readonly string _name = "Enhanced C# (parser only)";
 
-		private EcsLanguageService() { }
+		private EcsLanguageService()
+		{
+		}
 
 		public override string ToString()
 		{
@@ -34,14 +38,16 @@ namespace Ecs.Parser
 		}
 
 		public IEnumerable<string> FileExtensions { get { return _fileExtensions; } }
-		
+
 		public LNodePrinter Printer
 		{
-			get { throw new NotImplementedException(); }
+			get { return _printer; }
 		}
 		public string Print(LNode node, IMessageSink msgs = null, object mode = null, string indentString = "\t", string lineSeparator = "\n")
 		{
-			throw new NotImplementedException();
+			var sb = new StringBuilder();
+			_printer(node, sb, msgs ?? MessageSink.Current, mode, indentString, lineSeparator);
+			return sb.ToString();
 		}
 		public bool HasTokenizer
 		{
@@ -51,12 +57,12 @@ namespace Ecs.Parser
 		{
 			return new EcsLexer(text, fileName, msgs);
 		}
-		public IListSource<LNode> Parse(ICharSource text, string fileName, IMessageSink msgs, Symbol inputType = null)
+		public IListSource<LNode> Parse(ICharSource text, string fileName, IMessageSink msgs, ParsingMode inputType = null)
 		{
 			var lexer = Tokenize(text, fileName, msgs);
 			return Parse(lexer, msgs, inputType);
 		}
-		public IListSource<LNode> Parse(ILexer<Token> input, IMessageSink msgs, Symbol inputType = null)
+		public IListSource<LNode> Parse(ILexer<Token> input, IMessageSink msgs, ParsingMode inputType = null)
 		{
 			var preprocessed = new EcsPreprocessor(input);
 			var treeified = new TokensToTree(preprocessed, false);
@@ -66,7 +72,7 @@ namespace Ecs.Parser
 		[ThreadStatic]
 		static EcsParser _parser;
 
-		public IListSource<LNode> Parse(IListSource<Token> input, ISourceFile file, IMessageSink msgs, Symbol inputType = null)
+		public IListSource<LNode> Parse(IListSource<Token> input, ISourceFile file, IMessageSink msgs, ParsingMode inputType = null)
 		{
 			// For efficiency we'd prefer to re-use our _parser object, but
 			// when parsing lazily, we can't re-use it because another parsing 
@@ -76,18 +82,22 @@ namespace Ecs.Parser
 			// compromise I'll check if the source file is larger than a 
 			// certain arbitrary size. Also, ParseExprs() is always greedy 
 			// so we can always re-use _parser in that case.
-			bool exprMode = inputType == ParsingService.Exprs;
 			char _ = '\0';
-			if (inputType == ParsingService.Exprs || file.Text.TryGet(255, ref _)) {
+			if (file.Text.TryGet(255, ref _) || inputType == ParsingMode.FormalArguments ||
+				inputType == ParsingMode.Types || inputType == ParsingMode.Expressions) {
 				EcsParser parser = _parser;
 				if (parser == null)
 					_parser = parser = new EcsParser(input, file, msgs);
 				else {
-					parser.ErrorSink = msgs;
+					parser.ErrorSink = msgs ?? MessageSink.Current;
 					parser.Reset(input, file);
 				}
-				if (inputType == ParsingService.Exprs)
-					return parser.ParseExprs();
+				if (inputType == ParsingMode.Expressions)
+					return parser.ParseExprs(false, allowUnassignedVarDecl: false);
+				else if (inputType == ParsingMode.FormalArguments)
+					return parser.ParseExprs(false, allowUnassignedVarDecl: true);
+				else if (inputType == ParsingMode.Types)
+					return LNode.List(parser.DataType());
 				else
 					return parser.ParseStmtsGreedy();
 			} else {

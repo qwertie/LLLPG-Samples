@@ -13,7 +13,7 @@ using Loyc.Syntax;
 using Loyc.Syntax.Lexing;
 using Loyc.Syntax.Les;
 
-namespace Ecs.Parser
+namespace Loyc.Ecs.Parser
 {
 	using TT = TokenType;
 
@@ -58,8 +58,7 @@ namespace Ecs.Parser
 			_style = 0;
 			if (InputPosition >= CharSource.Count)
 				return Maybe<Token>.NoValue;
-			else
-			{
+			else {
 				Token();
 				Debug.Assert(InputPosition > _startPosition);
 				return new Token((int)_type, _startPosition, InputPosition - _startPosition, _style, _value);
@@ -96,20 +95,17 @@ namespace Ecs.Parser
 		void ParseSQStringValue()
 		{
 			int len = InputPosition - _startPosition;
-			if (!_parseNeeded && len == 3)
-			{
+			if (!_parseNeeded && len == 3) {
 				_value = CG.Cache(CharSource[_startPosition + 1]);
-			}
-			else
-			{
+			} else {
 				string s = ParseStringCore(_startPosition);
 				_value = s;
 				if (s.Length == 1)
 					_value = CG.Cache(s[0]);
 				else if (s.Length == 0)
-					Error(_startPosition, Localize.From("Empty character literal"));
+					Error(_startPosition, "Empty character literal".Localized());
 				else
-					Error(_startPosition, Localize.From("Character literal has {0} characters (there should be exactly one)", s.Length));
+					Error(_startPosition, "Character literal has {0} characters (there should be exactly one)".Localized(s.Length));
 			}
 		}
 
@@ -136,13 +132,10 @@ namespace Ecs.Parser
 			bool tripleQuoted = (_style & NodeStyle.Alternate2) != 0;
 
 			string value;
-			if (!_parseNeeded)
-			{
+			if (!_parseNeeded) {
 				Debug.Assert(!tripleQuoted);
 				value = (string)CharSource.Slice(start + 1, InputPosition - start - 2).ToString();
-			}
-			else
-			{
+			} else {
 				UString original = CharSource.Slice(start, InputPosition - start);
 				value = UnescapeQuotedString(ref original, _verbatim, Error, _indent);
 			}
@@ -152,29 +145,24 @@ namespace Ecs.Parser
 		static string UnescapeQuotedString(ref UString source, bool isVerbatim, Action<int, string> onError, UString indentation)
 		{
 			Debug.Assert(source.Length >= 1);
-			if (isVerbatim)
-			{
+			if (isVerbatim) {
 				bool fail;
 				char stringType = (char)source.PopFront(out fail);
 				StringBuilder sb = new StringBuilder();
 				int c;
-				for (; ; )
-				{
+				for (; ; ) {
 					c = source.PopFront(out fail);
 					if (fail) break;
-					if (c == stringType)
-					{
+					if (c == stringType) {
 						if ((c = source.PopFront(out fail)) != stringType)
 							break;
 					}
 					sb.Append((char)c);
 				}
 				return sb.ToString();
-			}
-			else
-			{
+			} else {
 				// triple-quoted or normal string: let LES lexer handle it
-				return LesLexer.UnescapeQuotedString(ref source, onError, indentation);
+				return LesLexer.UnescapeQuotedString(ref source, onError, indentation, true);
 			}
 		}
 
@@ -200,8 +188,7 @@ namespace Ecs.Parser
 			UString parsed;
 			Debug.Assert(isBQString == (CharSource.TryGet(start, '\0') == '`'));
 			Debug.Assert(!_verbatim);
-			if (!_idCache.TryGetValue(unparsed, out _value))
-			{
+			if (!_idCache.TryGetValue(unparsed, out _value)) {
 				if (isBQString)
 					parsed = ParseStringCore(start);
 				else if (_parseNeeded)
@@ -216,10 +203,8 @@ namespace Ecs.Parser
 		{
 			var parsed = new StringBuilder();
 			char c;
-			while ((c = text[0, '\0']) != '\0')
-			{
-				if (!ScanUnicodeEscape(ref text, parsed, c))
-				{
+			while ((c = text[0, '\0']) != '\0') {
+				if (!ScanUnicodeEscape(ref text, parsed, c)) {
 					parsed.Append(c);
 					text = text.Slice(1);
 				}
@@ -235,22 +220,18 @@ namespace Ecs.Parser
 				return false;
 			char u = text.TryGet(1, '\0');
 			int len = 4;
-			if (u == 'u' || u == 'U')
-			{
+			if (u == 'u' || u == 'U') {
 				if (u == 'U') len = 8;
 				if (text.Length < 2 + len)
 					return false;
 
 				var digits = text.Substring(2, len);
 				int code;
-				if (G.TryParseHex(digits, out code) && code <= 0x0010FFFF)
-				{
-					if (code >= 0x10000)
-					{
+				if (ParseHelpers.TryParseHex(digits, out code) && code <= 0x0010FFFF) {
+					if (code >= 0x10000) {
 						parsed.Append((char)(0xD800 + ((code - 0x10000) >> 10)));
 						parsed.Append((char)(0xDC00 + ((code - 0x10000) & 0x3FF)));
-					}
-					else
+					} else
 						parsed.Append((char)code);
 					text = text.Substring(2 + len);
 					return true;
@@ -321,8 +302,7 @@ namespace Ecs.Parser
 			string error;
 			if ((_value = LesLexer.ParseNumberCore(digits, false, _numberBase, _isFloat, _typeSuffix, out error)) == null)
 				_value = 0;
-			else if (_value == CodeSymbols.Sub)
-			{
+			else if (_value == CodeSymbols.Sub) {
 				InputPosition = _startPosition + 1;
 				_type = TT.Sub;
 			}
@@ -350,21 +330,16 @@ namespace Ecs.Parser
 		public static int MeasureIndent(UString indent, int spacesPerTab)
 		{
 			int amount = 0;
-			for (int i = 0; i < indent.Length; i++)
-			{
+			for (int i = 0; i < indent.Length; i++) {
 				char ch = indent[i];
-				if (ch == '\t')
-				{
+				if (ch == '\t') {
 					amount += spacesPerTab;
 					amount -= amount % spacesPerTab;
-				}
-				else if (ch == '.' && i + 1 < indent.Length)
-				{
+				} else if (ch == '.' && i + 1 < indent.Length) {
 					amount += spacesPerTab;
 					amount -= amount % spacesPerTab;
 					i++;
-				}
-				else
+				} else
 					amount++;
 			}
 			return amount;

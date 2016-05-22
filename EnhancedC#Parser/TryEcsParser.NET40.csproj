@@ -34,14 +34,21 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Loyc.Collections">
-      <HintPath>..\LLLPG.NET40\Loyc.Collections.dll</HintPath>
+    <Reference Include="Loyc.Collections, Version=1.7.6.0, Culture=neutral, PublicKeyToken=b1460dff8a28f7a7, processorArchitecture=MSIL">
+      <HintPath>..\packages\LoycCore.1.8.0\lib\net40-client\Loyc.Collections.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    <Reference Include="Loyc.Essentials">
-      <HintPath>..\LLLPG.NET40\Loyc.Essentials.dll</HintPath>
+    <Reference Include="Loyc.Essentials, Version=1.7.6.0, Culture=neutral, PublicKeyToken=b1460dff8a28f7a7, processorArchitecture=MSIL">
+      <HintPath>..\packages\LoycCore.1.8.0\lib\net40-client\Loyc.Essentials.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    <Reference Include="Loyc.Syntax">
-      <HintPath>..\LLLPG.NET40\Loyc.Syntax.dll</HintPath>
+    <Reference Include="Loyc.Syntax, Version=1.7.6.0, Culture=neutral, PublicKeyToken=b1460dff8a28f7a7, processorArchitecture=MSIL">
+      <HintPath>..\packages\LoycCore.1.8.0\lib\net40-client\Loyc.Syntax.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Loyc.Utilities, Version=1.7.6.0, Culture=neutral, PublicKeyToken=b1460dff8a28f7a7, processorArchitecture=MSIL">
+      <HintPath>..\packages\LoycCore.1.8.0\lib\net40-client\Loyc.Utilities.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -49,13 +56,13 @@
   <ItemGroup>
     <Compile Include="EcsLanguageService.cs" />
     <Compile Include="EcsLexer.cs" />
-    <Compile Include="EcsLexerGrammar.cs">
+    <Compile Include="EcsLexerGrammar.out.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>EcsLexerGrammar.les</DependentUpon>
     </Compile>
     <Compile Include="EcsParser.cs" />
-    <Compile Include="EcsParserGrammar.cs">
+    <Compile Include="EcsParserGrammar.out.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>EcsParserGrammar.les</DependentUpon>
@@ -69,12 +76,13 @@
   <ItemGroup>
     <None Include="EcsLexerGrammar.les">
       <Generator>LLLPG</Generator>
-      <LastGenOutput>EcsLexerGrammar.cs</LastGenOutput>
+      <LastGenOutput>EcsLexerGrammar.out.cs</LastGenOutput>
     </None>
     <None Include="EcsParserGrammar.les">
       <Generator>LLLPG</Generator>
-      <LastGenOutput>EcsParserGrammar.cs</LastGenOutput>
+      <LastGenOutput>EcsParserGrammar.out.cs</LastGenOutput>
     </None>
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>

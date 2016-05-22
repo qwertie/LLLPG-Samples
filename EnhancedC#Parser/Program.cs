@@ -6,7 +6,7 @@ using Loyc.Syntax;
 using Loyc;
 using Loyc.Collections;
 
-namespace Ecs.Parser
+namespace Loyc.Ecs
 {
 	using S = CodeSymbols;
 	using Loyc.Syntax.Lexing;
@@ -21,18 +21,10 @@ namespace Ecs.Parser
 				"or while(true) Console.WriteLine(\"I'm not crazy!\"); (or exit to quit).\n");
 			Console.WriteLine(
 				"The parser produces Loyc trees, and they are printed out using the default\n" +
-				"printer which is the LES printer. The LES printer is highly incomplete at\n" +
-				"the moment: it uses a clumsy prefix notation, with no operators or\n" +
-				"superexpression notations supported. On the plus side, prefix notation\n" +
-				"makes the structure of the syntax tree very apparent in simple cases (yet\n" +
-				"very hard to understand in complex cases).\n");
+				"printer which is the LES printer.\n");
 			Console.WriteLine(
-				"The parser was ripped out of Ecs.exe for this demo. Ecs.exe also contains\n" +
-				"the EC# printer (which LLLPG uses to write output) and EcsLanguageService\n" +
-				"(which provides both parser and printer so it couldn't be included here).\n");
-			Console.WriteLine(
-				"The EC# parser does not support LINQ yet and may have other limitations\n" +
-				"that have not been noticed yet.\n");
+				"The parser was ripped out of Loyc.Ecs.dll for this demo. Loyc.Ecs.dll, unlike \n" +
+				"this demo, also contains the EC# printer (which LLLPG uses to write output).\n");
 			Console.WriteLine(
 				"Exercise for the reader: write a REPL for C#. Just kidding.\n");
 
@@ -56,6 +48,32 @@ namespace Ecs.Parser
 				}
 				Console.WriteLine();
 			}
+		}
+	}
+
+	partial class EcsValidators
+	{
+		/// <summary>Given a complex name such as <c>global::Foo&lt;int>.Bar&lt;T></c>,
+		/// this method identifies the base name component, which in this example 
+		/// is Bar. This is used, for example, to identify the expected name for
+		/// a constructor based on the class name, e.g. <c>Foo&lt;T></c> => Foo.</summary>
+		/// <remarks>It is not verified that name is a complex identifier. There
+		/// is no error detection but in some cases an empty name may be returned, 
+		/// e.g. for input like <c>Foo."Hello"</c>.</remarks>
+		public static Symbol KeyNameComponentOf(LNode name)
+		{
+			if (name == null)
+				return null;
+			// global::Foo<int>.Bar<T> is structured (((global::Foo)<int>).Bar)<T>
+			// So if #of, get first arg (which cannot itself be #of), then if #dot, 
+			// get second arg.
+			if (name.CallsMin(S.Of, 1))
+				name = name.Args[0];
+			if (name.CallsMin(S.Dot, 1))
+				name = name.Args.Last;
+			if (name.IsCall)
+				return KeyNameComponentOf(name.Target);
+			return name.Name;
 		}
 	}
 }
