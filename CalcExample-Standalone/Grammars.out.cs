@@ -1,7 +1,8 @@
-// Generated from Grammars.ecs by LeMP custom tool. LLLPG version: 1.3.2.0
+// Generated from Grammars.ecs by LeMP custom tool. LeMP version: 1.8.0.0
 // Note: you can give command-line arguments to the tool via 'Custom Tool Namespace':
 // --no-out-header       Suppress this message
 // --verbose             Allow verbose messages (shown by VS as 'warnings')
+// --timeout=X           Abort processing thread after X seconds (default: 10)
 // --macros=FileName.dll Load macros from FileName.dll, path relative to this file 
 // Use #importMacros to use macros in a given namespace, e.g. #importMacros(Loyc.LLPG);
 using System;
@@ -120,7 +121,7 @@ namespace CalcExample
 			int la0, la1;
 			_startIndex = _src.InputPosition;
 			_value = null;
-			// Line 108: ( Num | Id | [\^] | [*] | [/] | [+] | [\-] | [:] [=] | [.] [n] [a] [n] | [.] [i] [n] [f] | [(] | [)] | [\t ] )
+			// Line 108: ( Num | Id | [\^] | [*] | [/] | [+] | [\-] | ([:] [=] | [=]) | [.] [n] [a] [n] | [.] [i] [n] [f] | [(] | [)] | [\t ] )
 			do {
 				la0 = _src.LA0;
 				switch (la0) {
@@ -207,12 +208,18 @@ namespace CalcExample
 					}
 					break;
 				case ':':
+				case '=':
 					{
 						#line 115 "Grammars.ecs"
 						_type = TT.Set;
 						#line default
-						_src.Skip();
-						_src.Match('=');
+						// Line 115: ([:] [=] | [=])
+						la0 = _src.LA0;
+						if (la0 == ':') {
+							_src.Skip();
+							_src.Match('=');
+						} else
+							_src.Match('=');
 					}
 					break;
 				case '(':

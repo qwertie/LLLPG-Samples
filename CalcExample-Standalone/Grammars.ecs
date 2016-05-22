@@ -112,7 +112,7 @@ namespace CalcExample
 				 | { _type = TT.Div; } '/'
 				 | { _type = TT.Add; } '+'
 				 | { _type = TT.Sub; } '-'
-				 | { _type = TT.Set; } ":="
+				 | { _type = TT.Set; } (":="|"=")
 				 | { _type = TT.Num; } ".nan" { _value = double.NaN; }
 				 | { _type = TT.Num; } ".inf" { _value = double.PositiveInfinity; }
 				 | { _type = TT.LParen; } '('

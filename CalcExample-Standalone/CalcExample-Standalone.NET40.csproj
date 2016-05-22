@@ -38,16 +38,16 @@
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Grammars.out.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Grammars.ecs</DependentUpon>
+    </Compile>
     <Compile Include="LexerSource.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="ParserSource.cs">
       <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="Grammars.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>Grammars.ecs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -55,7 +55,7 @@
   <ItemGroup>
     <None Include="Grammars.ecs">
       <Generator>LLLPG</Generator>
-      <LastGenOutput>Grammars.cs</LastGenOutput>
+      <LastGenOutput>Grammars.out.cs</LastGenOutput>
     </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
