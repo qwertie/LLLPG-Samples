@@ -65,6 +65,8 @@ namespace Loyc.Syntax.Lexing
 			return set;
 		}
 
+		public static explicit operator LexerSource(string str) { return new LexerSource(str); }
+
 		/// <summary>Initializes BaseLexer.</summary>
 		/// <param name="source">A source of characters, e.g. <see cref="UString"/>.</param>
 		/// <param name="fileName">A file name associated with the characters, 

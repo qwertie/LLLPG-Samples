@@ -2,7 +2,8 @@
 
 Articles about LLLPG are published on the [home page](http://ecsharp.net/lllpg/).
 
-This repo contains five demos:
+This repo contains the following demos:
+
 - Boilerplate (a very simple two-stage parser - good starting point for your own parsers)
 - Calculator demo (standalone)
 - Calculator demo (based on Loyc libraries)
