@@ -8,6 +8,7 @@ using Loyc.Syntax;
 using System.IO;
 using Loyc.Syntax.Lexing;
 using System.Diagnostics.Contracts;
+using System.Diagnostics;
 
 namespace Json
 {
@@ -25,6 +26,7 @@ namespace Json
 
 		static void ParseAndPrintExample()
 		{
+			string result, roundTrip;
 			object testPrint = new List<object> {
 				null, 1.0, 2.0, 
 				new Dictionary<string, object> { 
@@ -33,20 +35,24 @@ namespace Json
 				},
 				5
 			};
-			Console.WriteLine("Test print:");
-			Console.WriteLine(@"[null, 1, 2, { ""three"": 3, ""four"": [4, []] }, 5]");
+			Console.WriteLine("Printer test:");
+			Console.WriteLine(@"   Expect: [null, 1, 2, { ""three"": 3, ""four"": [4, []] }, 5]");
 			try {
-				Console.WriteLine(Json.Print(testPrint, compactMode: true));
-				Console.WriteLine(Json.Print(Json.Parse(Json.Print(testPrint, compactMode: true))));
+				result = Json.Print(testPrint, compactMode: true);
+				Console.WriteLine("   Output: " + result);
 			} catch (LogException ex) {
 				ex.Msg.WriteTo(MessageSink.Console);
 			}
 
-			string testParse = @" [ 1, 2.0, { ""\three"" : 3.0e3 , ""four\n"" : [0.4e+1 , [ ]	]	} , 40.04e-1	, { } ] ";
-			Console.WriteLine("Test parse:");
-			Console.WriteLine(testParse);
-			Console.WriteLine(Json.Print(Json.Parse(testParse)));
+			Console.WriteLine("Parser test:");
+			string testParse = @" [ 1, 2.0, { ""\three"" : 3.0e3 , ""four\n"" : [0.4e+1 , [ ] ]	} , 40.04e-1	, { } ] ";
+			Console.WriteLine("    Input: " + testParse);
+			result = Json.Print(Json.Parse(testParse));
+			Console.WriteLine("   Result: " + result);
+			roundTrip = Json.Print(Json.Parse(result));
+			Console.WriteLine("Roundtrip: " + roundTrip);
 		}
+	
 		static void ParseJsonFiles()
 		{
 			int count = 0;
@@ -67,6 +73,7 @@ namespace Json
 			}
 			Console.WriteLine("--- Parsed & reserialized {0} files ---", count);
 		}
+
 		static void ParseConsoleReadLine()
 		{
 			Console.WriteLine("Please input a JSON string to parse:");

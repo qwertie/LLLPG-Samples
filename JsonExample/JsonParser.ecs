@@ -57,7 +57,7 @@ namespace Json
 			private String returns [string result] : {int start = InputPosition;}
 				{bool escaped = false;}
 				'"'
-				( '\\' _ {escaped = true;} | default ~('"'|'\\'|0..31) )* 
+				( '\\' _ {escaped = true;} | default ~('"'|'\\'|0..31) | error {Error(0, "Control character not permitted");} _  )* 
 				('"' | error { Error(0, "Expected closing quote"); })
 				{
 					UString text = CharSource.Slice(start + 1, InputPosition - start - 2);

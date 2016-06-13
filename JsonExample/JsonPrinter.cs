@@ -31,7 +31,9 @@ namespace Json
 	{
 		protected PrinterState S;
 		
-		/// <summary>The JSON printer tries to keep the line width under this size.</summary>
+		/// <summary>The JSON printer tries to keep the line width under this size. 
+		/// It can't always succeed - long strings or key-value pairs with long key
+		/// strings may exceed this size.</summary>
 		public int PreferredLineWidth { get; set; }
 		/// <summary>Maximum number of items of a dictionary to pack on a single line.</summary>
 		public int DictionaryGroupSize { get; set; }
@@ -116,12 +118,9 @@ namespace Json
 		{
 			int oldLen = S.S.Length;
 			S.Append("\"");
-			// TODO: add EscapeCStyle option to use only \u, not \x which JSON doesn't support
-			S.Append(ParseHelpers.EscapeCStyle(str, EscapeC.DoubleQuotes | EscapeC.ABFV | EscapeC.Control));
+			S.Append(ParseHelpers.EscapeCStyle(str, EscapeC.Minimal | EscapeC.DoubleQuotes | EscapeC.ABFV | EscapeC.Control));
 			S.Append("\"");
 		}
-
-		List<PrinterState.Revokable> _newlines = new List<PrinterState.Revokable>();
 
 		public void PrintList(IEnumerable<object> obj)
 		{
@@ -134,7 +133,14 @@ namespace Json
 			{
 				PrintString(pair.Key);
 				S.Append(": ");
-				Print(pair.Value);
+				if (pair.Value is string && pair.Key.Length > 2) {
+					// Key and value may be too long for one line; try two
+					var cp = S.Newline(+1);
+					PrintString(pair.Value as string);
+					S.Dedent();
+					S.RevokeOrCommitNewlines(cp, PreferredLineWidth);
+				} else
+					Print(pair.Value);
 			});
 		}
 
@@ -142,13 +148,13 @@ namespace Json
 
 		protected void PrintListOrDictionary<T>(IEnumerable<T> obj, string opener, string closer, bool spaceInside, int maxItemsInSingleLineList, Action<T> printItem)
 		{
-			int oldLength = S.S.Length;
-			int oldNewlineCount = _newlines.Count;
-			int count;
+			var cp = S.GetCheckpoint();
 			PrintOpener(opener, spaceInside);
+			int count;
 			PrintSequence(obj.GetEnumerator(), ListGroupSize, out count, printItem);
 			PrintCloser(closer, spaceInside);
-			ConditionallyRevokeNewlines(count <= maxItemsInSingleLineList, oldLength, oldNewlineCount);
+			// If the list is short enough, remove associated newlines so it fits on one line
+			S.RevokeOrCommitNewlines(cp, count <= maxItemsInSingleLineList ? PreferredLineWidth : 0);
 		}
 
 		protected void PrintOpener(string bracket, bool space)
@@ -156,13 +162,13 @@ namespace Json
 			S.Append(bracket);
 			if (space) S.Append(" ");
 			if (NewlineAfterOpener)
-				_newlines.Add(S.Newline(+1));
+				S.Newline(+1);
 		}
 
 		protected void PrintCloser(string bracket, bool space)
 		{
 			if (space) S.Append(" ");
-			_newlines.Add(S.Newline(-1));
+			S.Newline(-1);
 			S.Append(bracket);
 		}
 
@@ -175,57 +181,34 @@ namespace Json
 			if (!e.MoveNext())
 				return;
 			for (;;) {
+				int preferredLineWidth = PreferredLineWidth;
+
 				// First item in group
+				var checkpoint = S.GetCheckpoint();
 				printItem(e.Current);
 				count++;
+				if (S.LineNo != checkpoint.LineNo)
+					preferredLineWidth = 0;
 
 				// Rest of items in the current group
-				for (int i = 1; i < maxPerLine; i++, count++) {
+				for (int i = 1; i < maxPerLine; i++) {
 					if (!e.MoveNext())
 						return;
 
 					S.Append(separator);
-					int lineWidthBefore = S.IndexInCurrentLine;
-					_newlines.Add(S.Newline());
-					
-					int curLine = S.LineNo;
-					int oldIndex = S.S.Length;
-					int oldNewlineCount = _newlines.Count;
+					checkpoint = S.Newline();
 					printItem(e.Current);
-					Contract.Assert(oldNewlineCount == _newlines.Count);
-					
-					int itemLength = S.S.Length - oldIndex;
-					if (S.LineNo == curLine && lineWidthBefore + itemLength < PreferredLineWidth)
-						RevokeLastNewline();
+					count++;
+					if (S.RevokeOrCommitNewlines(checkpoint, preferredLineWidth) >= 0)
+						preferredLineWidth = 0;
 				}
 
 				if (!e.MoveNext())
 					return;
 
 				S.Append(separator);
-				_newlines.Add(S.Newline());
+				S.Newline();
 			}
-		}
-
-		protected void ConditionallyRevokeNewlines(bool fewEnoughItems, int oldLength, int oldNewlineCount)
-		{
-			if (fewEnoughItems) {
-				int length = S.Length - oldLength;
-				for (int i = oldNewlineCount; i < _newlines.Count; i++)
-					length -= _newlines[i].Length;
-
-				int indentSize = S.IndentLevel * S.IndentString.Length;
-				if (length < PreferredLineWidth - indentSize)
-					while (_newlines.Count > oldNewlineCount)
-						RevokeLastNewline();
-			}
-			_newlines.Resize(oldNewlineCount);
-		}
-
-		void RevokeLastNewline()
-		{
-			S.Revoke(_newlines[_newlines.Count - 1]);
-			_newlines.RemoveAt(_newlines.Count - 1);
 		}
 
 		#endregion

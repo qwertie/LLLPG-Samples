@@ -1,4 +1,4 @@
-// Generated from JsonParser.ecs by LeMP custom tool. LeMP version: 1.7.5.0
+// Generated from JsonParser.ecs by LeMP custom tool. LeMP version: 1.8.0.0
 // Note: you can give command-line arguments to the tool via 'Custom Tool Namespace':
 // --no-out-header       Suppress this message
 // --verbose             Allow verbose messages (shown by VS as 'warnings')
@@ -181,7 +181,6 @@ namespace Json
 			result = ParseHelpers.TryParseDouble(ref str, 10);
 			return result;
 		}
-		static readonly HashSet<int> String_set0 = NewSetOfRanges(-1, 31, '"', '"', '\\', '\\');
 		string String()
 		{
 			int la0;
@@ -198,11 +197,14 @@ namespace Json
 					// line 60
 					escaped = true;
 				} else if (!(la0 >= -1 && la0 <= '\x1F' || la0 == '"'))
-					MatchExcept(String_set0);
+					Skip();
 				else if (la0 == -1 || la0 == '"')
 					break;
-				else
-					MatchExcept(String_set0);
+				else {
+					// line 60
+					Error(0, "Control character not permitted");
+					MatchExcept();
+				}
 			}
 			// Line 61: (["])
 			la0 = LA0;

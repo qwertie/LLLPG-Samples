@@ -53,9 +53,9 @@
   <ItemGroup>
     <None Include="JsonParser.ecs">
       <Generator>LLLPG</Generator>
-      <LastGenOutput>JsonParser.cs</LastGenOutput>
+      <LastGenOutput>JsonParser.out.cs</LastGenOutput>
     </None>
-    <Compile Include="JsonParser.cs">
+    <Compile Include="JsonParser.out.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>JsonParser.ecs</DependentUpon>
