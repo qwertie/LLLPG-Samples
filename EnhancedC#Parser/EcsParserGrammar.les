@@ -834,7 +834,7 @@ namespace Loyc.Ecs.Parser
 			[ t:=TT.This {attrs.Add(F.Id(t));} ]?
 			pair:=VarDeclStart
 			{var(type::LNode = pair.Item1, name::LNode = pair.Item2);}
-			(	// A property is allowed whereever an initialized variable is 
+			(	// A property is allowed wherever an initialized variable is 
 				// allowed, to make possible `Constructor(public int Prop {get;}) {}`
 				result:RestOfPropertyDefinition(type, name, true)
 				{hasInitializer = true;}

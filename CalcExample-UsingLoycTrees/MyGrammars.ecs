@@ -132,7 +132,7 @@ namespace MyLanguage
 		unroll ((TEXT, TOKEN_NAME, TOKEN_VALUE, _) in PUNCTUATION_TOKEN_LIST)
 		{
 			// 'extern' prevents a method from being generated for the rule.
-			// 'inline' causes this rule to be pasted whereever it is used.
+			// 'inline' causes this rule to be pasted wherever it is used.
 			// 'punctuation' is not a keyword. It is an extra tag that is 
 			// recognized by the 'any punctuation' command in NextToken().
 			extern inline punctuation rule TOKEN_NAME() { 
